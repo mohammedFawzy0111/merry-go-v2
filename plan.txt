@@ -1,3 +1,8 @@
-1. main file structure and routing
-2. tabs for settings, liberary , sources, and downloads
-3. basic settings screen applying themes
+1. main file structure and routing [done]
+2. tabs for settings, liberary , sources, and downloads [doen]
+3. basic settings screen applying themes [done]
+4. boilerplate for sources screen [done]
+5. types and model of the manga chapter and sources [done]
+6. build the main source screen => recent , and popular []
+7. make the taps work []
+8. mangaDetail screen []
