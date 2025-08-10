@@ -1,60 +1,68 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+// components/ThemedText.tsx
+import { useTheme } from '@/contexts/ThemeProvider';
+import React from 'react';
+import { Text as RNText, TextProps as RNTextProps, StyleSheet } from 'react-native';
 
-import { useThemeColor } from '@/hooks/useThemeColor';
+type TextVariant = 'default' | 'secondary' | 'accent' | 'title' | 'subtitle';
 
-export type ThemedTextProps = TextProps & {
-  lightColor?: string;
-  darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
-};
-
-export function ThemedText({
-  style,
-  lightColor,
-  darkColor,
-  type = 'default',
-  ...rest
-}: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
-
-  return (
-    <Text
-      style={[
-        { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+interface ThemedTextProps extends RNTextProps {
+    variant?: TextVariant;
+    bold?: boolean;
 }
 
-const styles = StyleSheet.create({
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 32,
-  },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
-  },
+export const ThemedText: React.FC<ThemedTextProps> = ({
+    variant = 'default',
+    bold = false,
+    style,
+    ...props
+    }) => {
+    const { colors } = useTheme();
+
+    const getTextColor = () => {
+        switch (variant) {
+        case 'secondary':
+            return colors.textSecondary;
+        case 'accent':
+            return colors.accent;
+        case 'title':
+            return colors.text;
+        case 'subtitle':
+            return colors.textSecondary;
+        default:
+            return colors.text;
+        }
+    };
+
+    const getFontSize = () => {
+        switch (variant) {
+        case 'title':
+            return 20;
+        case 'subtitle':
+            return 16;
+        default:
+            return 14;
+        }
+    };
+
+    return (
+        <RNText
+        style={[
+            styles.text,
+            {
+            color: getTextColor(),
+            fontSize: getFontSize(),
+            fontWeight: bold ? 'bold' : 'normal',
+            },
+            style,
+        ]}
+        {...props}
+        />
+    );
+    };
+
+    const styles = StyleSheet.create({
+    text: {
+        fontFamily: 'System', // Or your custom font
+        lineHeight: 20, // Better readability
+    },
 });
