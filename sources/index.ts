@@ -1,6 +1,6 @@
+import { Source } from "@/utils/sourceModel";
 import mangaDex from "./MangaDex";
 
-// You can customize these icons or other metadata as needed
 export const sources = [
   {
     name: mangaDex.name || "Test Source",
@@ -8,3 +8,9 @@ export const sources = [
     source: mangaDex,
   },
 ];
+
+export const placeHolderSource = new Source({
+  name: "placeholder",
+  baseUrl: "example.com",
+  icon: "https://example.com/icon.png",
+})

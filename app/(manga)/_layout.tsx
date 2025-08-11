@@ -21,7 +21,12 @@ export default function MangaLayout() {
           title: source ,
         }}
       />
-      {/* Add other screens here if needed */}
+      <Stack.Screen 
+        name="mangaDetail" 
+        options={{
+          title: "Manga Details",
+        }}
+      />
     </Stack>
   );
 }

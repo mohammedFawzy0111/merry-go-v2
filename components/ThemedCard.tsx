@@ -1,6 +1,6 @@
 // components/ThemedCard.tsx
 import React from 'react';
-import { Image, ImageSourcePropType, ImageStyle, View as RNView, StyleSheet } from 'react-native';
+import { Image, ImageSourcePropType, ImageStyle, View as RNView, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 
@@ -10,6 +10,7 @@ interface ThemedCardProps {
     imageStyle?: ImageStyle;
     cardStyle?: RNView['props']['style'];
     titleVariant?: 'default' | 'secondary' | 'accent' | 'title' | 'subtitle';
+    onPress?: () => void; // Optional onPress handler
 }
 
 export const ThemedCard: React.FC<ThemedCardProps> = ({
@@ -18,29 +19,35 @@ export const ThemedCard: React.FC<ThemedCardProps> = ({
     imageStyle,
     cardStyle,
     titleVariant = 'title',
+    onPress = () => {}, // Default to a no-op function
 }) => {
 
     return (
-        <ThemedView variant="surface" style={[styles.card, cardStyle]}>
-            <Image 
-                source={imageSource} 
-                style={[styles.image, imageStyle]} 
-                resizeMode="cover"
-            />
-            <ThemedView 
-                style={styles.titleContainer}
-                variant="background"
-            >
-                <ThemedText 
-                    variant={titleVariant} 
-                    style={styles.titleText}
-                    numberOfLines={2}
-                    ellipsizeMode="tail"
+        <TouchableOpacity 
+        onPress={onPress} 
+        activeOpacity={0.7}
+        style={[styles.card, cardStyle]}>
+            <ThemedView variant="surface" style={{flex: 1}}>
+                <Image 
+                    source={imageSource} 
+                    style={[styles.image, imageStyle]} 
+                    resizeMode="cover"
+                />
+                <ThemedView 
+                    style={styles.titleContainer}
+                    variant="background"
                 >
-                    {title}
-                </ThemedText>
+                    <ThemedText 
+                        variant={titleVariant} 
+                        style={styles.titleText}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                    >
+                        {title}
+                    </ThemedText>
+                </ThemedView>
             </ThemedView>
-        </ThemedView>
+        </TouchableOpacity>
     );
 };
 

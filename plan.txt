@@ -5,4 +5,6 @@
 5. types and model of the manga chapter and sources [done]
 6. build the main source screen => recent , and popular [done]
 7. make the taps work [done]
-8. mangaDetail screen []
+8. mangaDetail screen [done]
+9. chapters list []
+10. reader screen []

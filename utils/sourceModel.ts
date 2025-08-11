@@ -1,3 +1,15 @@
+interface MangaDetails {
+    altTitles?: string[];
+    status?: string;
+    description?: string;
+    "original language"?: string;
+    Demographic?: string;
+    year?: string | number;
+    tags?: string[];
+    author?: string;
+    artist?: string;
+}
+
 class Manga {
     name: string;
     url: string;
@@ -5,7 +17,7 @@ class Manga {
     lastChapter: string;
     lastUpadated: string;
     source: Source;
-    data: Record<string, any>;
+    data: MangaDetails;
     chapters: Chapter[];
 
     constructor(params: {
@@ -15,7 +27,7 @@ class Manga {
         lastChapter: string;
         lastUpadated: string;
         source: Source;
-        data?: Record<string, any>;
+        data?: MangaDetails;
         chapters?: Chapter[];
     }) {
         this.name = params.name;
@@ -24,10 +36,21 @@ class Manga {
         this.lastChapter = params.lastChapter;
         this.lastUpadated = params.lastUpadated;
         this.source = params.source;
-        this.data = params.data ?? {};
+        this.data = params.data ?? {
+            altTitles: [],
+            status: "Unknown",
+            description: "",
+            "original language": "en",
+            Demographic: "Unknown",
+            year: "Unknown",
+            tags: [],
+            author: "Unknown Author",
+            artist: "Unknown Artist"
+        };
         this.chapters = params.chapters ?? [];
     }
 }
+
 
 
 class Chapter {

@@ -4,7 +4,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, useWindowDimensions } from "react-native";
 
@@ -46,9 +46,11 @@ export default function SourceScreen() {
   const { sourceName } = useLocalSearchParams();
   const isTablet = useWindowDimensions().width >= 768;
 
-  const [sortBy, setSortBy] = useState<SortOption>("latest");
+  const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [mangas, setMangas] = useState<Manga[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const router = useRouter();
 
   const source = sources.find((s) => s.name === sourceName);
   if (!source) {
@@ -116,6 +118,12 @@ export default function SourceScreen() {
               title={item.name}
               cardStyle={[styles.card, isTablet && styles.cardTablet]}
               titleVariant="subtitle"
+              onPress={() => {
+                router.navigate({
+                  pathname: "/(manga)/mangaDetail",
+                  params: { mangaUrl: item.url, sourceName}
+                })
+              }}
             />
           )}
           keyExtractor={(item) => item.url}
