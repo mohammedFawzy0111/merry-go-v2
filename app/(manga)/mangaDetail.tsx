@@ -1,15 +1,17 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { useTheme } from "@/contexts/ThemeProvider";
 import { placeHolderSource, sources } from "@/sources";
 import { Manga } from "@/utils/sourceModel";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
-
-
+import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import Collapsible from 'react-native-collapsible';
 
 export default function MangaDetails () {
     const { mangaUrl, sourceName } = useLocalSearchParams();
+    const { colors } = useTheme()
     const source = sources.find(el => el.name === sourceName)?.source;
     const [manga, setManga] = useState<Manga>(new Manga({
         name: "Unknown",
@@ -22,6 +24,7 @@ export default function MangaDetails () {
         chapters: []
     }));
     const [loading, setLoading] = useState(false);
+    const [detailsCollapsed,setDetailsCollapsed] = useState(true)
 
     useEffect(() => {
         let cancelled = false;
@@ -109,40 +112,55 @@ export default function MangaDetails () {
                 </View>
             </ThemedView>
             {/* tags */}
-        {manga.data.tags && manga.data.tags.length > 0 && (
-            <View style={styles.tagsContainer}>
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tagsContent}
-            >
-                {manga.data.tags.map((tag: string, index: number) => (
-                <ThemedView 
-                    variant="surface" 
-                    style={styles.tagPill} 
-                    key={index}
+            {manga.data.tags && manga.data.tags.length > 0 && (
+                <View style={styles.tagsContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.tagsContent}
                 >
-                    <ThemedText variant="subtitle">{tag}</ThemedText>
-                </ThemedView>
-                ))}
-            </ScrollView>
-            </View>
-        )}
-        {/* other manga data */}
-        <ThemedView variant="surface" style={styles.body}>
-            {manga.data.Demographic && (<ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>)}
-            {manga.data.description && (<ThemedText variant="secondary">{`Description: "${manga.data.description}"`}</ThemedText>)}
-            {manga.data.altTitles && manga.data.altTitles.length > 0 && (
-                <View>
-                    <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
-                    {manga.data.altTitles.map(
-                        (title:string, id:number) => (
-                            <ThemedText key={id} variant="secondary">{title}</ThemedText>
-                        )
-                    )}
+                    {manga.data.tags.map((tag: string, index: number) => (
+                    <ThemedView 
+                        variant="surface" 
+                        style={styles.tagPill} 
+                        key={index}
+                    >
+                        <ThemedText variant="subtitle">{tag}</ThemedText>
+                    </ThemedView>
+                    ))}
+                </ScrollView>
                 </View>
             )}
-        </ThemedView>
+            {/* other manga data */}
+            <Collapsible collapsed={detailsCollapsed} collapsedHeight={120} >
+                <ThemedView variant="surface" style={styles.body}>
+                    {manga.data.Demographic && (<ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>)}
+                    {manga.data.description && (<ThemedText variant="secondary">{`Description: "${manga.data.description}"`}</ThemedText>)}
+                    {manga.data.altTitles && manga.data.altTitles.length > 0 && (
+                        <View>
+                            <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
+                            {manga.data.altTitles.map(
+                                (title:string, id:number) => (
+                                    <ThemedText key={id} variant="secondary">{title}</ThemedText>
+                                )
+                            )}
+                        </View>
+                    )}
+                </ThemedView>
+            </Collapsible>
+            <ThemedView variant="surface" style={styles.collapsibleHeader}>
+                <TouchableOpacity
+                    onPress={() => setDetailsCollapsed(!detailsCollapsed)}
+                    style={styles.collapsibleButton}
+                >
+                    <Ionicons 
+                        name={detailsCollapsed ? 'chevron-down' : 'chevron-up'} 
+                        size={16}
+                        style={styles.chevron}
+                        color={colors.text}
+                    />
+                </TouchableOpacity>
+            </ThemedView>
         </ScrollView>
     )
 }
@@ -193,8 +211,21 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 12,
   },
+  collapsibleHeader: {
+        padding: 12,
+        
+    },
+    collapsibleButton: {
+        backgroundColor: "transperent",
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    chevron: {
+        marginLeft: 8,
+    },
   body : {
     padding: 12,
     gap: 12,
+    paddingTop: 0,
   }
 });
