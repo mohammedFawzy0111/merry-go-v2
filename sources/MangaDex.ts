@@ -57,6 +57,31 @@ const getChapters = async (mangaId: string, mangaTitle:string): Promise<Chapter[
     return chapters;
 }
 
+// function to get best title
+const getBestTitle = (attributes: any): string => {
+    // Try main titles first (en, ar, ja)
+    if (attributes.title["en"]) return attributes.title["en"];
+    if (attributes.title["ar"]) return attributes.title["ar"];
+    if (attributes.title["ja"]) return attributes.title["ja"];
+    
+    // If no main title, look for English in altTitles
+    if (attributes.altTitles) {
+        // Find first English alt title
+        const englishAltTitle = attributes.altTitles.find((titleObj: any) => titleObj["en"]);
+        if (englishAltTitle?.["en"]) return englishAltTitle["en"];
+        
+        // If no English, return first available alt title
+        const firstAltTitle = attributes.altTitles.find((titleObj: any) => {
+            const values = Object.values(titleObj);
+            return values.length > 0 && values[0];
+        });
+        if (firstAltTitle) return Object.values(firstAltTitle)[0] as string;
+    }
+    
+    // Fallback to "Unknown"
+    return "Unknown";
+};
+
 // Fetch recent manga from MangaDex
 mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
     try {
@@ -72,7 +97,7 @@ mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
         const mangas: Manga[] = await Promise.all(
             data.data.map(async (item: any) => {
                 const attributes = item.attributes;
-                const title = attributes.title["en"] || attributes.title["ar"] || attributes.title["ja"] || "Unknown Title";
+                const title = getBestTitle(attributes);
                 const url = `${API}/manga/${item.id}`;
 
                 const coverRel = item.relationships.find((rel: any) => rel.type === "cover_art");
@@ -85,7 +110,15 @@ mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
                 const lastUpdated = attributes.updatedAt || new Date().toISOString();
 
                 const mangaData = {
-                    altTitles: attributes.altTitles || [],
+                    altTitles: attributes.altTitles
+                ? attributes.altTitles
+                    .map((titleObj: Record<string, string>) => {
+                        // Get the first (and usually only) value from the object
+                        const firstValue = Object.values(titleObj)[0];
+                        return firstValue || "";
+                    })
+                    .filter(Boolean) // remove empty strings
+                : [],
                     status: attributes.status || "Unknown",
                     description: attributes.description["en"] || "",
                     "original language": attributes.originalLanguage || "en",
@@ -132,7 +165,7 @@ mangaDex.fetchPopularManga = async (): Promise<Manga[]> => {
         const mangas: Manga[] = await Promise.all(
             data.data.map(async (item: any) => {
                 const attributes = item.attributes;
-                const title = attributes.title["en"] || attributes.title["ar"] || attributes.title["ja"] || "Unknown Title";
+                const title = getBestTitle(attributes);
                 const url = `${API}/manga/${item.id}`;
 
                 const coverRel = item.relationships.find((rel: any) => rel.type === "cover_art");
@@ -145,7 +178,15 @@ mangaDex.fetchPopularManga = async (): Promise<Manga[]> => {
                 const lastUpdated = attributes.updatedAt || new Date().toISOString();
 
                 const mangaData = {
-                    altTitles: attributes.altTitles || [],
+                    altTitles: attributes.altTitles
+                ? attributes.altTitles
+                    .map((titleObj: Record<string, string>) => {
+                        // Get the first (and usually only) value from the object
+                        const firstValue = Object.values(titleObj)[0];
+                        return firstValue || "";
+                    })
+                    .filter(Boolean) // remove empty strings
+                : [],
                     status: attributes.status || "Unknown",
                     description: attributes.description["en"] || "",
                     "original language": attributes.originalLanguage || "en",
@@ -191,7 +232,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
         });
         
         const mangaData = data.data;
-        const title = mangaData.attributes.title["en"] || mangaData.attributes.title["ar"] || "Unknown title";
+        const title = getBestTitle(mangaData.attributes);
         const coverId = mangaData.relationships.find((rel: any) => rel.type === "cover_art").id;
         const cover = await axios.get(`${API}/cover/${coverId}`);
         const coverUrl = `${CDN}/covers/${mangaData.id}/${cover.data.data.attributes.fileName}.256.jpg`;

@@ -9,6 +9,12 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import Collapsible from 'react-native-collapsible';
 
+const ChapterCard = () => {
+    return(
+        <ThemedView></ThemedView>
+    )
+}
+
 export default function MangaDetails () {
     const { mangaUrl, sourceName } = useLocalSearchParams();
     const { colors } = useTheme()
@@ -221,7 +227,9 @@ const styles = StyleSheet.create({
   },
   collapsibleHeader: {
         padding: 12,
-        
+        borderRadius: 0,
+        opacity: 0.2,
+        flex:1,
     },
     collapsibleButton: {
         backgroundColor: "transperent",
