@@ -1,5 +1,4 @@
 // components/ThemedCard.tsx
-import { useTheme } from '@/contexts/ThemeProvider';
 import React from 'react';
 import { Image, ImageSourcePropType, ImageStyle, View as RNView, StyleSheet } from 'react-native';
 import { ThemedText } from './ThemedText';
@@ -20,7 +19,6 @@ export const ThemedCard: React.FC<ThemedCardProps> = ({
     cardStyle,
     titleVariant = 'title',
 }) => {
-    const { colors } = useTheme();
 
     return (
         <ThemedView variant="surface" style={[styles.card, cardStyle]}>
