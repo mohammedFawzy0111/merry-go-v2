@@ -31,14 +31,14 @@ class Manga {
 
 
 class Chapter {
-    manga: Manga;
+    manga: string;
     title: string;
     number: number;
     url: string;
     pages: string[];
 
     constructor(params:{
-        manga: Manga;
+        manga: string;
         title?: string;
         number: number;
         url: string;
@@ -57,7 +57,7 @@ class Source {
     baseUrl: string;
     icon: string;
     fetchRecentManga: () => Promise<Manga[]>;
-    fetchPupularManga: () => Promise<Manga[]>;
+    fetchPopularManga: () => Promise<Manga[]>;
     fetchMangaDetails: (url: string) => Promise<Manga>;
     fetchChapterDetails: (url: string) => Promise<Chapter[]>;
     fetchSearchResults: (query: string) => Promise<Manga[]>;
@@ -66,17 +66,17 @@ class Source {
         name: string;
         baseUrl: string;
         icon: string;
-        fetchRecentManga?: () => Promise<Manga[]>;
-        fetchPupularManga?: () => Promise<Manga[]>;
+        fetchRecentManga?: () => Promise<Manga[] >;
+        fetchPopularManga?: () => Promise<Manga[] >;
         fetchMangaDetails?: (url: string) => Promise<Manga>;
-        fetchChapterDetails?: (url: string) => Promise<Chapter[]>;
+        fetchChapterDetails?: (url: string) => Promise<Chapter[] >;
         fetchSearchResults?: (query: string) => Promise<Manga[]>;
     }){
         this.name = params.name;
         this.baseUrl = params.baseUrl;
         this.icon = params.icon;
         this.fetchRecentManga = params.fetchRecentManga || (() => Promise.resolve([]));
-        this.fetchPupularManga = params.fetchPupularManga || (() => Promise.resolve([]));
+        this.fetchPopularManga = params.fetchPopularManga || (() => Promise.resolve([]));
         this.fetchMangaDetails = params.fetchMangaDetails || (() => Promise.resolve(new Manga({ name: '', url: '', imageUrl: '', lastChapter: '', lastUpadated: '', source: this })));
         this.fetchChapterDetails = params.fetchChapterDetails || (() => Promise.resolve([]));
         this.fetchSearchResults = params.fetchSearchResults || (() => Promise.resolve([]));
@@ -84,3 +84,4 @@ class Source {
 }
 
 export { Chapter, Manga, Source };
+

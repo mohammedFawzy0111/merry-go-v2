@@ -21,6 +21,7 @@ interface DropdownProps<T extends string> {
   onSelect: (value: T) => void;
   placeholder?: string;
   width?: DimensionValue;
+  textSize?: number;
 }
 
 export function Dropdown<T extends string>({
@@ -29,6 +30,7 @@ export function Dropdown<T extends string>({
   onSelect,
   placeholder = 'Select an option',
   width = '100%',
+  textSize = 16,
 }: DropdownProps<T>) {
   const { colors } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
@@ -75,12 +77,22 @@ export function Dropdown<T extends string>({
       onPress={() => handleSelect(item.value)}
     >
       {item.icon && <Ionicons name={item.icon} size={18} color={colors.text} />}
-      <ThemedText style={styles.optionText}>{item.label}</ThemedText>
+      <ThemedText style={[styles.optionText, optionTextStyle]}>{item.label}</ThemedText>
       {selectedValue === item.value && (
         <Ionicons name="checkmark" size={18} color={colors.accent} />
       )}
     </TouchableOpacity>
   );
+
+  const headerTextStyle = {
+    fontSize: textSize,
+    flexShrink: 1 
+  };
+
+  const optionTextStyle = {
+    fontSize: textSize,
+    flex: 1,
+  }
 
   return (
     <>
@@ -98,7 +110,7 @@ export function Dropdown<T extends string>({
             {selectedOption?.icon && (
               <Ionicons name={selectedOption.icon} size={20} color={colors.accent} />
             )}
-            <ThemedText style={styles.headerText}>
+            <ThemedText style={[headerTextStyle]}>
               {selectedOption?.label || placeholder}
             </ThemedText>
           </View>
@@ -159,10 +171,6 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  headerText: {
-    fontSize: 16,
-    flexShrink: 1,
-  },
   menu: {
     position: 'absolute',
     borderWidth: 1,
@@ -178,6 +186,5 @@ const styles = StyleSheet.create({
   },
   optionText: {
     flex: 1,
-    fontSize: 15,
   },
 });

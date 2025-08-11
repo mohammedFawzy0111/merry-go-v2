@@ -3,24 +3,36 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/contexts/ThemeProvider';
 import { sources } from '@/sources';
-import { FlatList, Image, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { FlatList, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 export default function Sources() {
   const { colors } = useTheme();
+  const router = useRouter();
+
+  const loadSourceScreen = (source: typeof sources[0]) => {
+    router.navigate({
+      pathname: '/(manga)/sourceScreen',
+      params: { sourceName: source.name },
+    });
+}
 
   const renderItem = ({ item }: { item: typeof sources[0] }) => (
-    <ThemedView variant="surface" style={styles.sourceItem}>
-      <View style={styles.sourceHeader}>
-        {item.icon && (
-          <Image 
-            source={{ uri: item.icon }} 
-            style={[styles.sourceIcon,{ backgroundColor: colors.tint}]} 
-            resizeMode="contain"
-          />
-        )}
-        <ThemedText style={styles.sourceName}>{item.name}</ThemedText>
-      </View>
+    <TouchableOpacity 
+    onPress={() => loadSourceScreen(item)}>
+      <ThemedView variant="surface" style={styles.sourceItem}>
+        <View style={styles.sourceHeader}>
+          {item.icon && (
+            <Image 
+              source={{ uri: item.icon }} 
+              style={[styles.sourceIcon,{ backgroundColor: colors.tint}]} 
+              resizeMode="contain"
+            />
+          )}
+          <ThemedText style={styles.sourceName}>{item.name}</ThemedText>
+        </View>
     </ThemedView>
+    </TouchableOpacity>
   );
 
   return (
