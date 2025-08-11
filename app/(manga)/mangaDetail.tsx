@@ -6,7 +6,7 @@ import { Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import Collapsible from 'react-native-collapsible';
 
 export default function MangaDetails () {
@@ -49,7 +49,13 @@ export default function MangaDetails () {
     return (
         <ScrollView 
         style={styles.container}
-        contentContainerStyle={styles.contentContainer} >
+        contentContainerStyle={styles.contentContainer} 
+        >
+            {
+            loading ? (
+            <ActivityIndicator size="large" style={{ marginTop: 50 }} />
+        ) : (
+            <ThemedView>
             <ThemedView variant="surface" style = {styles.head}>
                 {/* cover image */}
                 <View style={styles.coverContainer}>
@@ -161,6 +167,8 @@ export default function MangaDetails () {
                     />
                 </TouchableOpacity>
             </ThemedView>
+            </ThemedView>
+            )}
         </ScrollView>
     )
 }
