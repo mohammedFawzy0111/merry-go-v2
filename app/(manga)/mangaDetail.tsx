@@ -12,7 +12,7 @@ import Collapsible from 'react-native-collapsible';
 
 const ChapterCard = ({chapter,style} : {chapter:Chapter, style?:ViewStyle}) => {
     return(
-        <ThemedView style={[styles.chapterCard, style]}>
+        <ThemedView variant="surface" style={[styles.chapterCard, style]}>
             <ThemedText variant="secondary">{chapter.number}</ThemedText>
             {chapter.title && (<ThemedText variant="subtitle">{chapter.title}</ThemedText>)}
         </ThemedView>
@@ -182,10 +182,11 @@ export default function MangaDetails () {
                     <FlatList
                         data = {manga.chapters}
                         renderItem={({item}) => (
-                            <ChapterCard chapter={item} style={{ borderStartColor: colors.accent }}/>
+                            <ChapterCard chapter={item} style={{ borderColor: colors.border }}/>
                         )}
                         keyExtractor={(item) => item.url}
                         showsVerticalScrollIndicator={false}
+                        scrollEnabled={false}
                     />
                 </ThemedView>
             </ThemedView>
@@ -267,5 +268,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     borderWidth: 2,
+    padding: 12,
+    marginBottom: 8,
   }
 });
