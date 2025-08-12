@@ -6,5 +6,5 @@
 6. build the main source screen => recent , and popular [done]
 7. make the taps work [done]
 8. mangaDetail screen [done]
-9. chapters list []
+9. chapters list [done]
 10. reader screen []
