@@ -82,7 +82,7 @@ class Source {
     fetchRecentManga: () => Promise<Manga[]>;
     fetchPopularManga: () => Promise<Manga[]>;
     fetchMangaDetails: (url: string) => Promise<Manga>;
-    fetchChapterDetails: (url: string) => Promise<Chapter[]>;
+    fetchChapterDetails: (url: string) => Promise<Chapter>;
     fetchSearchResults: (query: string) => Promise<Manga[]>;
 
     constructor(params: {
@@ -92,7 +92,7 @@ class Source {
         fetchRecentManga?: () => Promise<Manga[] >;
         fetchPopularManga?: () => Promise<Manga[] >;
         fetchMangaDetails?: (url: string) => Promise<Manga>;
-        fetchChapterDetails?: (url: string) => Promise<Chapter[] >;
+        fetchChapterDetails?: (url: string) => Promise<Chapter>;
         fetchSearchResults?: (query: string) => Promise<Manga[]>;
     }){
         this.name = params.name;
@@ -101,7 +101,7 @@ class Source {
         this.fetchRecentManga = params.fetchRecentManga || (() => Promise.resolve([]));
         this.fetchPopularManga = params.fetchPopularManga || (() => Promise.resolve([]));
         this.fetchMangaDetails = params.fetchMangaDetails || (() => Promise.resolve(new Manga({ name: '', url: '', imageUrl: '', lastChapter: '', lastUpadated: '', source: this })));
-        this.fetchChapterDetails = params.fetchChapterDetails || (() => Promise.resolve([]));
+        this.fetchChapterDetails = params.fetchChapterDetails || (() => Promise.resolve(new Chapter({manga:'', number: 0, url:'', pages:[]})));
         this.fetchSearchResults = params.fetchSearchResults || (() => Promise.resolve([]));
     }
 }

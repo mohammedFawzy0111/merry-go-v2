@@ -4,24 +4,29 @@ import { useTheme } from "@/contexts/ThemeProvider";
 import { placeHolderSource, sources } from "@/sources";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, TouchableOpacity, View, ViewStyle } from "react-native";
 import Collapsible from 'react-native-collapsible';
 
 
-const ChapterCard = ({chapter,style} : {chapter:Chapter, style?:ViewStyle}) => {
+const ChapterCard = ({chapter,style,onpress} : {chapter:Chapter, style?:ViewStyle,onpress:()=>void}) => {
     return(
-        <ThemedView variant="surface" style={[styles.chapterCard, style]}>
-            <ThemedText variant="secondary">{chapter.number}</ThemedText>
-            {chapter.title && (<ThemedText variant="subtitle">{chapter.title}</ThemedText>)}
-        </ThemedView>
+        <TouchableOpacity
+            onPress={onpress}
+        >
+            <ThemedView variant="surface" style={[styles.chapterCard, style]}>
+                <ThemedText variant="secondary">{chapter.number}</ThemedText>
+                {chapter.title && (<ThemedText variant="subtitle">{chapter.title}</ThemedText>)}
+            </ThemedView>
+        </TouchableOpacity>
     )
 }
 
 export default function MangaDetails () {
     const { mangaUrl, sourceName } = useLocalSearchParams();
-    const { colors } = useTheme()
+    const { colors } = useTheme();
+    const router = useRouter()
     const source = sources.find(el => el.name === sourceName)?.source;
     const [manga, setManga] = useState<Manga>(new Manga({
         name: "Unknown",
@@ -54,7 +59,14 @@ export default function MangaDetails () {
 
         loadMangaData();
         return () => { cancelled = true };
-        }, [source, mangaUrl]);
+    }, [source, mangaUrl]);
+
+    const goToChapter = (url:string) => {
+        router.navigate({
+            pathname:"/(manga)/readerScreen",
+            params: {chapterUrl: url, sourceName}
+        });
+    }
 
     return (
         <ScrollView 
@@ -182,7 +194,7 @@ export default function MangaDetails () {
                     <FlatList
                         data = {manga.chapters}
                         renderItem={({item}) => (
-                            <ChapterCard chapter={item} style={{ borderColor: colors.border }}/>
+                            <ChapterCard chapter={item} onpress={()=> goToChapter(item.url)} style={{ borderColor: colors.border }}/>
                         )}
                         keyExtractor={(item) => item.url}
                         showsVerticalScrollIndicator={false}

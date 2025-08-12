@@ -286,4 +286,42 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
     }
 }
 
+mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
+    try{
+        const chapterReq = await axios.get(url,{
+            headers: MANGA_DEX_HEADERS
+        });
+        const chapterData = chapterReq.data.data;
+
+        const manga = chapterData.relationships.find((rel:any) => rel.type == "manga")["id"] as string || "";
+        const title = chapterData.attributes.title || "";
+        const chapterNum = Number(chapterData.attributes.chapter) || 0;
+        const chapterId = chapterData.id;
+
+        const atHomeResp = await axios.get(`${API}/at-home/server/${chapterId}`,{
+            headers: MANGA_DEX_HEADERS
+        });
+        const baseUrl:string = atHomeResp.data.baseUrl;
+        const hash:string = atHomeResp.data.chapter.hash;
+        const fileNames: string[] = atHomeResp.data.chapter.data;
+
+        const pages: string[] = fileNames.map((name:string) => `${baseUrl}/data/${hash}/${name}`) || [];
+        return new Chapter({
+            manga,
+            title,
+            number: chapterNum,
+            url,
+            pages
+        })
+    } catch(error){
+        console.error("Error fetching chapter:", error);
+        return new Chapter({
+            manga:"",
+            number: 0,
+            url,
+            pages: []
+        });
+    }
+}
+
 export default mangaDex;

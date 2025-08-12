@@ -2,6 +2,7 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/ThemeProvider";
+import { sources } from "@/sources";
 import { Chapter } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -29,10 +30,12 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ChapterReader() {
-  const { chapterUrl } = useLocalSearchParams();
+  const { chapterUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const source = sources.find(el => el.name === sourceName)?.source;
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,14 +53,9 @@ export default function ChapterReader() {
     const fetchChapterData = async () => {
       setLoading(true);
       try {
-        const mockChapter: Chapter = {
-          url: chapterUrl as string,
-          number: 1,
-          title: "Chapter 1",
-          manga: "test",
-          pages: Array(10).fill("https://placehold.co/400x600"),
-        };
-        setChapter(mockChapter);
+        if (!source) return;
+        const chapter: Chapter = await source.fetchChapterDetails(chapterUrl as string);
+        setChapter(chapter);
       } catch (error) {
         console.error("Error fetching chapter:", error);
       } finally {
@@ -65,11 +63,12 @@ export default function ChapterReader() {
       }
     };
     fetchChapterData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterUrl]);
 
   // Auto-hide controls
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     if (controlsVisable) {
       timeout = setTimeout(hideControls, 10000);
     }
@@ -98,6 +97,7 @@ export default function ChapterReader() {
   }, [controlsOpacity, controlsTranslateY, setControlsVisable]);
 
   const toggleControls = useCallback(() => {
+    // eslint-disable-next-line no-unused-expressions
     controlsVisable ? hideControls() : showControlsAnimated();
   }, [controlsVisable, hideControls, showControlsAnimated]);
 
