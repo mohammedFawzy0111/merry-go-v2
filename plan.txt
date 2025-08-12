@@ -8,3 +8,4 @@
 8. mangaDetail screen [done]
 9. chapters list [done]
 10. reader screen []
+11. add setting to filter chapters languages []

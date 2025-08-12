@@ -27,6 +27,12 @@ export default function MangaLayout() {
           title: "Manga Details",
         }}
       />
+      <Stack.Screen
+        name="readerScreen"
+        options={{
+          headerShown: false
+        }} 
+        />
     </Stack>
   );
 }
