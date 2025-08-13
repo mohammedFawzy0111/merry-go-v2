@@ -62,11 +62,10 @@ const styles = StyleSheet.create({
   section: {
     borderRadius: 12,
     padding: 16,
-    gap: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12
+    marginBottom: 8
   },
   sectionTitle: {
     width: "auto"

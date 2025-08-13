@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     elevation: 5,
+    minWidth: 150,
   },
   option: {
     padding: 16,

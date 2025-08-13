@@ -7,11 +7,11 @@ export const fontSizes = {
         xl: 18,    // Rare (e.g., emphasized text)
     },
     heading : {
-        xs: 16,
-        s: 18,
-        m: 20,
-        l: 22,
-        xl: 24,
+        xs: 14,
+        s: 16,
+        m: 18,
+        l: 20,
+        xl: 22,
     },
     sub:{
         xs: 8,
