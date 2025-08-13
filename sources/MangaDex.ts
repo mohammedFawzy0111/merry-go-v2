@@ -46,6 +46,7 @@ const getChapters = async (mangaId: string, mangaTitle:string): Promise<Chapter[
                     url: chapterUrl,
                     title: ch.attributes.title || `Chapter ${chapterNum}`,
                     manga: mangaTitle,
+                    publishedAt: ch.attributes.publishAt || new Date().toISOString(),
                     pages: [] // not needed here
                 });
             })
@@ -297,6 +298,7 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
         const title = chapterData.attributes.title || "";
         const chapterNum = Number(chapterData.attributes.chapter) || 0;
         const chapterId = chapterData.id;
+        const publishedAt = chapterData.attributes.publishAt || new Date().toISOString();
 
         const atHomeResp = await axios.get(`${API}/at-home/server/${chapterId}`,{
             headers: MANGA_DEX_HEADERS
@@ -311,6 +313,7 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
             title,
             number: chapterNum,
             url,
+            publishedAt,
             pages
         })
     } catch(error){

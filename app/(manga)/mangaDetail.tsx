@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/ThemeProvider";
 import { placeHolderSource, sources } from "@/sources";
+import { formatDateString } from "@/utils/fomatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -16,8 +17,13 @@ const ChapterCard = ({chapter,style,onpress} : {chapter:Chapter, style?:ViewStyl
             onPress={onpress}
         >
             <ThemedView variant="surface" style={[styles.chapterCard, style]}>
-                <ThemedText variant="secondary">{chapter.number}</ThemedText>
-                {chapter.title && (<ThemedText variant="subtitle">{chapter.title}</ThemedText>)}
+                <ThemedView style={styles.col}>
+                    <ThemedText variant="secondary">{chapter.number}</ThemedText>
+                </ThemedView>
+                <ThemedView style={styles.col}>
+                    {chapter.title && (<ThemedText variant="subtitle">{chapter.title}</ThemedText>)}
+                    <ThemedText variant="secondary" style={{fontSize: 8}}>{formatDateString(chapter.publishedAt)}</ThemedText>
+                </ThemedView>
             </ThemedView>
         </TouchableOpacity>
     )
@@ -304,5 +310,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 12
+  },
+  col : {
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center"
   }
 });

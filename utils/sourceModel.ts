@@ -58,6 +58,7 @@ class Chapter {
     title: string;
     number: number;
     url: string;
+    publishedAt:string;
     pages: string[];
 
     constructor(params:{
@@ -65,12 +66,14 @@ class Chapter {
         title?: string;
         number: number;
         url: string;
+        publishedAt?: string;
         pages: string[]
     }){
         this.manga = params.manga;
         this.title = params.title || '';
         this.number = params.number;
         this.url = params.url;
+        this.publishedAt = params.publishedAt || new Date().toISOString();
         this.pages = params.pages || [];
     }
 }
