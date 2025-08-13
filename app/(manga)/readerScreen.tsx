@@ -1,6 +1,6 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { useTheme } from "@/contexts/ThemeProvider";
+import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Chapter } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
@@ -177,6 +177,7 @@ function Page({ uri, onZoomChange, onToggleControls }: PageProps) {
 export default function ChapterReader() {
   const { chapterUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
+  const { sizes } = useFontSize()
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -237,7 +238,7 @@ export default function ChapterReader() {
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
     if (controlsVisable) {
-      timeout = setTimeout(hideControls, 10000);
+      timeout = setTimeout(hideControls, 5000);
     }
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -304,7 +305,7 @@ export default function ChapterReader() {
                 onPress={() => router.back()}
                 style={styles.backButton}
               >
-                <Ionicons name="arrow-back" size={24} color={colors.text} />
+                <Ionicons name="arrow-back" size={sizes.heading} color={colors.text} />
               </TouchableOpacity>
               <ThemedText variant="title" style={styles.chapterTitle}>
                 {chapter.number} - {chapter.title}
@@ -332,7 +333,7 @@ export default function ChapterReader() {
                 style={styles.nextButton}
               >
                 <ThemedText variant="accent">Next</ThemedText>
-                <Ionicons name="arrow-forward" size={24} color={colors.accent} />
+                <Ionicons name="arrow-forward" size={sizes.heading} color={colors.accent} />
               </TouchableOpacity>
             </View>
           )}

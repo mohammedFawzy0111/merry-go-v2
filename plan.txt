@@ -12,3 +12,4 @@
 12. add publish date for chapters [done]
 13. add search functionality to sourceScreen []
 14. add sort functionality to chapters list on mangaDetails [done]
+15. add font size setting and standardize sizes across the app [done] 

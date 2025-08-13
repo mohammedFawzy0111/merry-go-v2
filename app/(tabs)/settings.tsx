@@ -1,18 +1,27 @@
 import { Dropdown, DropdownOption } from '@/components/Dropdown';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@/contexts/ThemeProvider';
+import { useSettings } from '@/contexts/settingProvider';
 import { StyleSheet } from 'react-native';
 
 type ThemeType = 'light' | 'dark' | 'system';
+type FontSizeType = "xs" | "s" | "m" | "l" | "xl";
 
 export default function Settings() {
-  const { themePreference, setTheme } = useTheme();
+  const { themePreference, setThemePreference, fontSize, setFontSize } = useSettings();
 
   const themeOptions: DropdownOption<ThemeType>[] = [
     { value: 'light', label: 'Light Theme', icon: 'sunny' },
     { value: 'dark', label: 'Dark Theme', icon: 'moon' },
     { value: 'system', label: 'System Default', icon: 'phone-portrait' },
+  ];
+
+  const fontSizeOptions: DropdownOption<FontSizeType>[] = [
+    { value: "xs", label: "Extra Small" },
+    { value: "s", label: "Small" },
+    { value: "m", label: "Medium" },
+    { value: "l", label: "Large" },
+    { value: "xl", label: "Extra Large" },
   ];
 
   return (
@@ -24,8 +33,20 @@ export default function Settings() {
         <Dropdown<ThemeType>
           options={themeOptions}
           selectedValue={themePreference}
-          onSelect={setTheme}
+          onSelect={setThemePreference}
           placeholder="Select theme"
+        />
+      </ThemedView>
+
+      <ThemedView variant="surface" style={styles.section}>
+        <ThemedText variant="title" style={styles.sectionTitle}>
+          Font Size
+        </ThemedText>
+        <Dropdown<FontSizeType>
+          options={fontSizeOptions}
+          selectedValue={fontSize}
+          onSelect={setFontSize}
+          placeholder="Select Size"
         />
       </ThemedView>
     </ThemedView>
@@ -35,7 +56,7 @@ export default function Settings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     gap: 16,
   },
   section: {

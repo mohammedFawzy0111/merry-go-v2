@@ -1,5 +1,5 @@
 // components/ThemedView.tsx
-import { useTheme } from '@/contexts/ThemeProvider';
+import { useTheme } from '@/contexts/settingProvider';
 import React from 'react';
 import { View as RNView, ViewProps as RNViewProps, StyleSheet } from 'react-native';
 

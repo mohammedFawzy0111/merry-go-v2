@@ -1,5 +1,5 @@
 // components/ThemedText.tsx
-import { useTheme } from '@/contexts/ThemeProvider';
+import { useFontSize, useTheme } from '@/contexts/settingProvider';
 import React from 'react';
 import { Text as RNText, TextProps as RNTextProps, StyleSheet } from 'react-native';
 
@@ -17,6 +17,7 @@ export const ThemedText: React.FC<ThemedTextProps> = ({
     ...props
     }) => {
     const { colors } = useTheme();
+    const { sizes } = useFontSize()
 
     const getTextColor = () => {
         switch (variant) {
@@ -36,11 +37,11 @@ export const ThemedText: React.FC<ThemedTextProps> = ({
     const getFontSize = () => {
         switch (variant) {
         case 'title':
-            return 20;
+            return sizes.heading;
         case 'subtitle':
-            return 16;
+            return sizes.sub;
         default:
-            return 14;
+            return sizes.text;
         }
     };
 

@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "48%",
-    aspectRatio: 0.8,
+    aspectRatio: 0.6,
   },
   cardTablet: {
     width: "31%",

@@ -1,4 +1,3 @@
-// theme/colors.ts
 export const lightColors = {
   bg: "#F5F5F4",
   surface: "#FFFFFF",

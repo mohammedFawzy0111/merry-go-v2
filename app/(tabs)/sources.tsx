@@ -1,7 +1,7 @@
 // app/(tabs)/sources.tsx
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@/contexts/ThemeProvider';
+import { useTheme } from '@/contexts/settingProvider';
 import { sources } from '@/sources';
 import { useRouter } from 'expo-router';
 import { FlatList, Image, StyleSheet, TouchableOpacity, View } from 'react-native';

@@ -1,4 +1,4 @@
-import { useTheme } from "@/contexts/ThemeProvider";
+import { useTheme } from "@/contexts/settingProvider";
 import { Stack, useLocalSearchParams } from "expo-router";
 
 export default function MangaLayout() {

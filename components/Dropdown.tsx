@@ -1,6 +1,6 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@/contexts/ThemeProvider';
+import { useSettings } from '@/contexts/settingProvider';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { DimensionValue, FlatList, LayoutRectangle, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -32,7 +32,7 @@ export function Dropdown<T extends string>({
   width = 'auto',
   textSize = 16,
 }: DropdownProps<T>) {
-  const { colors } = useTheme();
+  const { colors, sizes } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [buttonLayout, setButtonLayout] = useState<LayoutRectangle | null>(null);
   const rotation = useSharedValue(0);
@@ -76,10 +76,10 @@ export function Dropdown<T extends string>({
       ]}
       onPress={() => handleSelect(item.value)}
     >
-      {item.icon && <Ionicons name={item.icon} size={18} color={colors.text} />}
+      {item.icon && <Ionicons name={item.icon} size={sizes.text} color={colors.text} />}
       <ThemedText style={[styles.optionText, optionTextStyle]}>{item.label}</ThemedText>
       {selectedValue === item.value && (
-        <Ionicons name="checkmark" size={18} color={colors.accent} />
+        <Ionicons name="checkmark" size={sizes.text} color={colors.accent} />
       )}
     </TouchableOpacity>
   );
@@ -110,14 +110,14 @@ export function Dropdown<T extends string>({
         >
           <View style={styles.headerContent}>
             {selectedOption?.icon && (
-              <Ionicons name={selectedOption.icon} size={20} color={colors.accent} />
+              <Ionicons name={selectedOption.icon} size={sizes.heading} color={colors.accent} />
             )}
             <ThemedText style={[headerTextStyle]}>
               {selectedOption?.label || placeholder}
             </ThemedText>
           </View>
           <Animated.View style={animatedChevron}>
-            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+            <Ionicons name="chevron-down" size={sizes.heading} color={colors.textSecondary} />
           </Animated.View>
         </TouchableOpacity>
       </ThemedView>

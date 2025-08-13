@@ -1,6 +1,6 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { useTheme } from "@/contexts/ThemeProvider";
+import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { placeHolderSource, sources } from "@/sources";
 import { formatDateString } from "@/utils/fomatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
@@ -32,6 +32,7 @@ const ChapterCard = ({chapter,style,onpress} : {chapter:Chapter, style?:ViewStyl
 export default function MangaDetails () {
     const { mangaUrl, sourceName } = useLocalSearchParams();
     const { colors } = useTheme();
+    const { sizes } = useFontSize()
     const router = useRouter()
     const source = sources.find(el => el.name === sourceName)?.source;
     const [manga, setManga] = useState<Manga>(new Manga({
@@ -195,7 +196,7 @@ export default function MangaDetails () {
                     >
                         <Ionicons 
                             name={detailsCollapsed ? 'chevron-down' : 'chevron-up'} 
-                            size={16}
+                            size={sizes.heading}
                             style={styles.chevron}
                             color={colors.text}
                         />
@@ -204,9 +205,9 @@ export default function MangaDetails () {
 
                 <ThemedView variant="background" style={styles.chaptersContainer}>
                     <ThemedView variant="background" style = {styles.chaptersHeader}>
-                        <ThemedText variant="title" style={{fontSize: 16}}>{"Chapters"}</ThemedText>
+                        <ThemedText variant="title" style={{fontSize: sizes.text}}>{"Chapters"}</ThemedText>
                         <TouchableOpacity onPress={() => {toggleReverse()}}>
-                            <Ionicons name="swap-vertical-sharp" size={16} style={styles.chevron} color={colors.text}/>
+                            <Ionicons name="swap-vertical-sharp" size={sizes.heading} style={styles.chevron} color={colors.text}/>
                         </TouchableOpacity>
                     </ThemedView>
                     <FlatList
