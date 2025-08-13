@@ -216,6 +216,9 @@ export default function ChapterReader() {
         const chapter: Chapter = await source.fetchChapterDetails(
           chapterUrl as string
         );
+        if(!(chapter.pages.length > 0)){
+          router.back()
+        }
         setChapter(chapter);
       } catch (error) {
         console.error("Error fetching chapter:", error);
