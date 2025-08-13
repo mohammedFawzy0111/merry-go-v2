@@ -29,7 +29,7 @@ export function Dropdown<T extends string>({
   selectedValue,
   onSelect,
   placeholder = 'Select an option',
-  width = '100%',
+  width = 'auto',
   textSize = 16,
 }: DropdownProps<T>) {
   const { colors } = useTheme();
@@ -86,7 +86,9 @@ export function Dropdown<T extends string>({
 
   const headerTextStyle = {
     fontSize: textSize,
-    flexShrink: 1 
+    flexShrink: 1,
+    numberOfLines: 1,
+    ellipsizeMode: 'tail'
   };
 
   const optionTextStyle = {
@@ -164,12 +166,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minWidth: 100,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    flex: 1,
+    minWidth: 0,
   },
   menu: {
     position: 'absolute',
@@ -185,6 +188,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   optionText: {
-    flex: 1,
+    flexShrink: 1,
   },
 });
