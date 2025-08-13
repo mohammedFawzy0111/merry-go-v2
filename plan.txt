@@ -11,3 +11,4 @@
 11. add setting to filter chapters languages []
 12. add publish date for chapters []
 13. add search functionality to sourceScreen []
+14. add sort functionality to chapters list on mangaDetails [done]

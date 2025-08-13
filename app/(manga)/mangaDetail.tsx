@@ -39,7 +39,8 @@ export default function MangaDetails () {
         chapters: []
     }));
     const [loading, setLoading] = useState(false);
-    const [detailsCollapsed,setDetailsCollapsed] = useState(true)
+    const [detailsCollapsed,setDetailsCollapsed] = useState(true);
+    const [isReversed, setIsReversed] = useState<boolean>(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -66,6 +67,10 @@ export default function MangaDetails () {
             pathname:"/(manga)/readerScreen",
             params: {chapterUrl: url, sourceName}
         });
+    }
+
+    const toggleReverse = () => {
+        setIsReversed(!isReversed)
     }
 
     return (
@@ -191,11 +196,23 @@ export default function MangaDetails () {
                 </View>
 
                 <ThemedView variant="background" style={styles.chaptersContainer}>
+                    <ThemedView variant="background" style = {styles.chaptersHeader}>
+                        <ThemedText variant="title" style={{fontSize: 16}}>{"Chapters"}</ThemedText>
+                        <TouchableOpacity onPress={() => {toggleReverse()}}>
+                            <Ionicons name="swap-vertical-sharp" size={16} style={styles.chevron} color={colors.text}/>
+                        </TouchableOpacity>
+                    </ThemedView>
                     <FlatList
                         data = {manga.chapters}
-                        renderItem={({item}) => (
-                            <ChapterCard chapter={item} onpress={()=> goToChapter(item.url)} style={{ borderColor: colors.border }}/>
-                        )}
+                        extraData={isReversed}
+                        renderItem={({item,index}) => {
+                            
+                            const actualIndex = isReversed? manga.chapters.length-1-index : index;
+                            const actualItem = manga.chapters[actualIndex];
+                            return(
+                            <ChapterCard chapter={actualItem} onpress={()=> goToChapter(actualItem.url)} style={{ borderColor: colors.border }}/>
+                            )
+                        }}
                         keyExtractor={(item) => item.url}
                         showsVerticalScrollIndicator={false}
                         scrollEnabled={false}
@@ -256,7 +273,7 @@ const styles = StyleSheet.create({
   collapsibleHeader: {
         padding: 12,
         borderRadius: 0,
-        opacity: 0.2,
+        opacity: 0.5,
         flex:1,
     },
     collapsibleButton: {
@@ -282,5 +299,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     padding: 12,
     marginBottom: 8,
+  },
+  chaptersHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12
   }
 });
