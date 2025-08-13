@@ -1,4 +1,3 @@
-// screens/ChapterReader.tsx
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/ThemeProvider";
@@ -7,11 +6,13 @@ import { Chapter } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Image,
+  ListRenderItemInfo,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -29,32 +30,192 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const WINDOW = Dimensions.get("window");
+const MIN_SCALE = 1;
+const MAX_SCALE = 3;
+const DOUBLE_TAP_SCALE = 2;
+
+type PageProps = {
+  uri: string;
+  onZoomChange: (zoomed: boolean) => void; // called from UI thread via runOnJS
+  onToggleControls: () => void;
+};
+
+function clamp(v: number, a: number, b: number) {
+  "worklet";
+  return Math.max(a, Math.min(b, v));
+}
+
+/**
+ * Per-page component: handles pinch, pan, double-tap, and single-tap.
+ * Keeps its own animated shared values so pages don't interfere.
+ */
+function Page({ uri, onZoomChange, onToggleControls }: PageProps) {
+  const scale = useSharedValue(1);
+  const startScale = useSharedValue(1);
+
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+  
+  // Store image dimensions
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  
+  // Get image dimensions when URI changes
+  useEffect(() => {
+    Image.getSize(uri, (width, height) => {
+      setImageSize({ width, height });
+    }, () => {});
+  }, [uri]);
+
+  // Calculate aspect ratio for the image
+  const aspectRatio = imageSize.height > 0 ? imageSize.width / imageSize.height : 1;
+  const calculatedHeight = WINDOW.width / aspectRatio;
+
+  // Pinch gesture
+  const pinch = Gesture.Pinch()
+    .onStart(() => {
+      startScale.value = scale.value;
+      // inform JS that zoom started
+      runOnJS(onZoomChange)(true);
+    })
+    .onUpdate((e) => {
+      const s = clamp(startScale.value * e.scale, MIN_SCALE, MAX_SCALE);
+      scale.value = s;
+    })
+    .onEnd(() => {
+      if (scale.value <= MIN_SCALE + 0.01) {
+        // reset translations when back to min
+        scale.value = withTiming(1, { duration: 180 });
+        translateX.value = withTiming(0, { duration: 180 });
+        translateY.value = withTiming(0, { duration: 180 });
+        runOnJS(onZoomChange)(false);
+      } else if (scale.value > MAX_SCALE) {
+        scale.value = withTiming(MAX_SCALE, { duration: 180 });
+      }
+    });
+
+  // Pan gesture (only effective when zoomed)
+  const pan = Gesture.Pan()
+    .onStart(() => {
+      startX.value = translateX.value;
+      startY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      if (scale.value > 1.01) {
+        translateX.value = startX.value + e.translationX;
+        translateY.value = startY.value + e.translationY;
+      }
+    })
+    .onEnd(() => {
+      // Calculate boundaries based on actual image dimensions
+      const maxTranslateX = (WINDOW.width * (scale.value - 1)) / 2 + 80;
+      const maxTranslateY = (calculatedHeight * (scale.value - 1)) / 2 + 80;
+      translateX.value = clamp(translateX.value, -maxTranslateX, maxTranslateX);
+      translateY.value = clamp(translateY.value, -maxTranslateY, maxTranslateY);
+    });
+
+  // Double-tap to zoom in/out
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1.01) {
+        // zoom out
+        scale.value = withTiming(1, { duration: 200 });
+        translateX.value = withTiming(0, { duration: 200 });
+        translateY.value = withTiming(0, { duration: 200 });
+        runOnJS(onZoomChange)(false);
+      } else {
+        // zoom in
+        scale.value = withTiming(DOUBLE_TAP_SCALE, { duration: 200 });
+        runOnJS(onZoomChange)(true);
+      }
+    });
+
+  // Single tap toggles UI controls
+  const singleTap = Gesture.Tap()
+    .numberOfTaps(1)
+    .onEnd(() => {
+      runOnJS(onToggleControls)();
+    });
+
+  // Ensure double-tap steals recognition before single-tap (so double doesn't also trigger single)
+  const tapGesture = Gesture.Exclusive(doubleTap, singleTap);
+
+  // Only enable pinch/pan when zoomed
+  const composed = scale.value > 1.01
+    ? Gesture.Simultaneous(pinch, pan, tapGesture)
+    : Gesture.Simultaneous(pinch, tapGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  return (
+    <GestureDetector gesture={composed}>
+      <Animated.View style={[styles.pageContainer, animatedStyle]}>
+        <Animated.Image
+          source={{ uri }}
+          style={[
+            styles.pageImage,
+            { height: calculatedHeight, width: WINDOW.width }
+          ]}
+          resizeMode="contain"
+        />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
 export default function ChapterReader() {
   const { chapterUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const source = sources.find(el => el.name === sourceName)?.source;
+  const source = sources.find((el) => el.name === sourceName)?.source;
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
   const [controlsVisable, setControlsVisable] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+  const [readingMode, setReadingMode] = useState("vertical")
+  // when any page is zoomed, we disable the FlatList vertical scroll
+  const [isAnyZoomed, setIsAnyZoomed] = useState(false);
 
-  // Controls animation
-  const controlsOpacity = useSharedValue(1);
-  const controlsTranslateY = useSharedValue(0);
-
-  // Zoom value (shared for demo; can be made per-page later)
-  const scale = useSharedValue(1);
+  const toggleControls = useCallback(() => {
+    setControlsVisable((v) => !v);
+  }, []);
+  // Moved renderItem hook to top level - must be declared unconditionally
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<string>) => {
+      return (
+        <Page
+          uri={item}
+          onZoomChange={(zoomed) => {
+            // called from UI thread via runOnJS
+            setIsAnyZoomed(zoomed);
+          }}
+          onToggleControls={toggleControls}
+        />
+      );
+    },
+    [toggleControls]
+  );
 
   useEffect(() => {
     const fetchChapterData = async () => {
       setLoading(true);
       try {
         if (!source) return;
-        const chapter: Chapter = await source.fetchChapterDetails(chapterUrl as string);
+        const chapter: Chapter = await source.fetchChapterDetails(
+          chapterUrl as string
+        );
         setChapter(chapter);
       } catch (error) {
         console.error("Error fetching chapter:", error);
@@ -63,7 +224,7 @@ export default function ChapterReader() {
       }
     };
     fetchChapterData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterUrl]);
 
   // Auto-hide controls
@@ -78,46 +239,11 @@ export default function ChapterReader() {
 
   const showControlsAnimated = useCallback(() => {
     setControlsVisable(true);
-    controlsOpacity.value = withTiming(1, { duration: 200 });
-    controlsTranslateY.value = withTiming(0, { duration: 200 });
-  }, [controlsOpacity, controlsTranslateY]);
+  }, []);
 
   const hideControls = useCallback(() => {
-    // Completion callback is a worklet — use runOnJS to set React state
-    controlsOpacity.value = withTiming(0, { duration: 200 });
-    controlsTranslateY.value = withTiming(
-      -50,
-      { duration: 200 },
-      (isFinished?: boolean) => {
-        if (isFinished) {
-          runOnJS(setControlsVisable)(false);
-        }
-      }
-    );
-  }, [controlsOpacity, controlsTranslateY, setControlsVisable]);
-
-  const toggleControls = useCallback(() => {
-    // eslint-disable-next-line no-unused-expressions
-    controlsVisable ? hideControls() : showControlsAnimated();
-  }, [controlsVisable, hideControls, showControlsAnimated]);
-
-  // Pinch gesture (per-image pinch)
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
-      scale.value = e.scale;
-    })
-    .onEnd(() => {
-      scale.value = withTiming(1, { duration: 200 });
-    });
-
-  const animatedImageStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const controlsStyle = useAnimatedStyle(() => ({
-    opacity: controlsOpacity.value,
-    transform: [{ translateY: controlsTranslateY.value }],
-  }));
+    setControlsVisable(false);
+  }, []);
 
   const handlePageChange = (event: any) => {
     const index = Math.floor(
@@ -126,6 +252,7 @@ export default function ChapterReader() {
     setCurrentPage(index);
   };
 
+  // Moved conditional return AFTER all hook declarations
   if (loading || !chapter) {
     return (
       <ThemedView variant="background" style={styles.container}>
@@ -134,97 +261,76 @@ export default function ChapterReader() {
     );
   }
 
-  // Tap gesture to toggle controls (runs on UI thread; use runOnJS to call JS toggle)
-  const tapGesture = Gesture.Tap().numberOfTaps(1).onEnd(() => {
-    runOnJS(toggleControls)();
-  });
-
-  // When controls are visible we want to show status bar; hide it otherwise.
-  // (StatusBar hidden prop uses the current controlsVisable state)
   return (
     <>
       <StatusBar hidden={!controlsVisable} animated style="auto" />
       <GestureHandlerRootView style={styles.container}>
-        <GestureDetector gesture={tapGesture}>
-          <View style={styles.readerContainer}>
-            <FlatList
-              data={chapter.pages}
-              renderItem={({ item }) => (
-                // Keep pinch per-item so pinch gestures work on the image
-                <GestureDetector gesture={pinchGesture}>
-                  <Animated.View style={styles.pageContainer}>
-                    <Animated.Image
-                      source={{ uri: item }}
-                      style={[styles.pageImage, animatedImageStyle]}
-                      resizeMode="contain"
-                    />
-                  </Animated.View>
-                </GestureDetector>
-              )}
-              keyExtractor={(_, index) => index.toString()}
-              onMomentumScrollEnd={handlePageChange}
-              pagingEnabled
-              showsVerticalScrollIndicator={false}
-            />
+        <View style={styles.readerContainer}>
+          <FlatList
+            data={chapter.pages}
+            renderItem={renderItem}
+            keyExtractor={(_, index) => index.toString()}
+            onMomentumScrollEnd={handlePageChange}
+            pagingEnabled = {!isAnyZoomed && !(readingMode === "vertical")}
+            snapToAlignment={readingMode === "vertical"? undefined: "center"}
+            snapToInterval={readingMode === "vertical"? undefined: WINDOW.height}
+            decelerationRate={readingMode === "vertcial"? "normal": "fast"}
+            disableIntervalMomentum={readingMode === "vertical"}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={!isAnyZoomed} // when zoomed, disable list scrolling so pan works
+            removeClippedSubviews
+            windowSize={3}
+          />
 
-            {/* Top Controls */}
-            {controlsVisable && (
-              <Animated.View
-                style={[
-                  styles.topControls,
-                  controlsStyle,
-                  {
-                    // move controls below status bar / notch when visible
-                    top: insets.top,
-                    paddingTop: insets.top > 0 ? 8 : 0,
-                    backgroundColor: `${colors.surface}CC`,
-                  },
-                ]}
+          {/* Top Controls */}
+          {controlsVisable && (
+            <View
+              style={[
+                styles.topControls,
+                {
+                  top: insets.top,
+                  paddingTop: insets.top > 0 ? 8 : 0,
+                  backgroundColor: `${colors.surface}CC`,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.backButton}
               >
-                <TouchableOpacity
-                  onPress={() => router.back()}
-                  style={styles.backButton}
-                >
-                  <Ionicons name="arrow-back" size={24} color={colors.text} />
-                </TouchableOpacity>
-                <ThemedText variant="title" style={styles.chapterTitle}>
-                  {chapter.number} - {chapter.title}
-                </ThemedText>
-              </Animated.View>
-            )}
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <ThemedText variant="title" style={styles.chapterTitle}>
+                {chapter.number} - {chapter.title}
+              </ThemedText>
+            </View>
+          )}
 
-            {/* Bottom Controls */}
-            {controlsVisable && (
-              <Animated.View
-                style={[
-                  styles.bottomControls,
-                  controlsStyle,
-                  {
-                    // lift controls above home indicator / gesture area
-                    bottom: insets.bottom,
-                    paddingBottom: insets.bottom > 0 ? 8 : 0,
-                    backgroundColor: `${colors.surface}CC`,
-                  },
-                ]}
+          {/* Bottom Controls */}
+          {controlsVisable && (
+            <View
+              style={[
+                styles.bottomControls,
+                {
+                  bottom: insets.bottom,
+                  paddingBottom: insets.bottom > 0 ? 8 : 0,
+                  backgroundColor: `${colors.surface}CC`,
+                },
+              ]}
+            >
+              <ThemedText variant="subtitle">
+                {currentPage + 1} / {chapter.pages.length}
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => console.log("Next chapter")}
+                style={styles.nextButton}
               >
-                <ThemedText variant="subtitle">
-                  {currentPage + 1} / {chapter.pages.length}
-                </ThemedText>
-                <TouchableOpacity
-                  onPress={() => console.log("Next chapter")}
-                  style={styles.nextButton}
-                >
-                  <ThemedText variant="accent">Next</ThemedText>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={24}
-                    color={colors.accent}
-                  />
-                </TouchableOpacity>
-              </Animated.View>
-            )}
-          </View>
-        </GestureDetector>
+                <ThemedText variant="accent">Next</ThemedText>
+                <Ionicons name="arrow-forward" size={24} color={colors.accent} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </GestureHandlerRootView>
     </>
   );
@@ -232,15 +338,14 @@ export default function ChapterReader() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  readerContainer: { flex: 1, position: "relative" },
+  readerContainer: { flex: 1, position: "relative", backgroundColor: "black" },
   pageContainer: {
-    width: Dimensions.get("window").width,
-    height: Dimensions.get("window").height,
+    width: WINDOW.width,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "black",
   },
-  pageImage: { width: "100%", height: "100%" },
+  pageImage: { width: "100%" },
   topControls: {
     position: "absolute",
     left: 0,
