@@ -6,7 +6,7 @@ import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, ToastAndroid, useWindowDimensions } from "react-native";
 
 type SortOption = "popular" | "latest";
 
@@ -79,6 +79,7 @@ export default function SourceScreen() {
           setMangas(data);
         }
       } catch (err) {
+        ToastAndroid.show(`failed to load source: ${err}`,ToastAndroid.LONG)
         console.error(`Error fetching ${sortBy} manga:`, err);
         if (!cancelled) setMangas([]);
       } finally {

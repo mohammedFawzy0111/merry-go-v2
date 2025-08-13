@@ -7,7 +7,7 @@ import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, TouchableOpacity, View, ViewStyle } from "react-native";
+import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, ToastAndroid, TouchableOpacity, View, ViewStyle } from "react-native";
 import Collapsible from 'react-native-collapsible';
 
 
@@ -58,7 +58,8 @@ export default function MangaDetails () {
             const data = await source.fetchMangaDetails(mangaUrl as string);
             if (!cancelled) setManga(data);
             } catch (error) {
-            console.error(`Error fetching ${mangaUrl} manga:`, error);
+                ToastAndroid.show(`failded to load manga: ${error}`, ToastAndroid.LONG)
+                console.error(`Error fetching ${mangaUrl} manga:`, error);
             } finally {
             if (!cancelled) setLoading(false);
             }

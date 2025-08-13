@@ -14,8 +14,9 @@ import {
   Image,
   ListRenderItemInfo,
   StyleSheet,
+  ToastAndroid,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import {
   Gesture,
@@ -29,6 +30,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 
 const WINDOW = Dimensions.get("window");
 const MIN_SCALE = 1;
@@ -217,6 +219,7 @@ export default function ChapterReader() {
           chapterUrl as string
         );
         if(!(chapter.pages.length > 0)){
+          ToastAndroid.show("chapter is empty", ToastAndroid.LONG)
           router.back()
         }
         setChapter(chapter);
