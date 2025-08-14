@@ -2,11 +2,12 @@ import { Dropdown, DropdownOption } from "@/components/Dropdown";
 import { ThemedCard } from "@/components/ThemedCard";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, ToastAndroid, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, useWindowDimensions } from "react-native";
 
 type SortOption = "popular" | "latest";
 
@@ -44,15 +45,20 @@ const SortDropdown = ({
 
 export default function SourceScreen() {
   const { sourceName } = useLocalSearchParams();
+  const { colors } = useTheme();
+  const { sizes } = useFontSize();
   const isTablet = useWindowDimensions().width >= 768;
 
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [mangas, setMangas] = useState<Manga[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("")
 
   const router = useRouter();
 
   const source = sources.find((s) => s.name === sourceName);
+  let timeoutId: ReturnType<typeof setTimeout>;
+
   if (!source) {
     return (
       <ThemedView variant="background" style={styles.container}>
@@ -70,10 +76,16 @@ export default function SourceScreen() {
     const loadManga = async () => {
       setLoading(true);
       try {
-        const data =
-          sortBy === "latest"
-            ? await sourceModel.fetchRecentManga()
-            : await sourceModel.fetchPopularManga() ?? []; // optional chaining in case it’s missing
+        let data: Manga[] = [];
+
+        if(searchQuery.trim().length > 0){
+          data = await sourceModel.fetchSearchResults(searchQuery);
+        } else {
+          data =
+            sortBy === "latest"
+              ? await sourceModel.fetchRecentManga()
+              : await sourceModel.fetchPopularManga() ?? [];
+        }
 
         if (!cancelled) {
           setMangas(data);
@@ -87,16 +99,26 @@ export default function SourceScreen() {
       }
     };
 
-    loadManga();
+    timeoutId = setTimeout(()=> {
+      loadManga();
+    }, 1000);
 
     return () => {
       cancelled = true; // prevents setting state after unmount
+      clearTimeout(timeoutId);
     };
-  }, [sortBy, sourceModel]);
+  }, [sortBy, sourceModel,searchQuery]);
 
   return (
     <ThemedView variant="background" style={styles.container}>
       <ThemedView variant="surface" style={styles.header}>
+        <TextInput 
+          style={[styles.searchBar,{ backgroundColor: colors.bg, fontSize: sizes.text }]}
+          placeholder="search"
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
         <SortDropdown
           position={isTablet ? "right" : "left"}
           value={sortBy}
@@ -146,6 +168,7 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
     padding: 4,
+    flexDirection: 'row'
   },
   listContent: {
     paddingBottom: 16,
@@ -163,12 +186,18 @@ const styles = StyleSheet.create({
     width: "31%",
   },
   dropdownContainer: {
-    maxWidth: 150,
+    width: "auto",
   },
   rightPosition: {
     right: 8,
   },
   leftPosition: {
     left: 8,
+  },
+  searchBar: {
+    flex: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
 });

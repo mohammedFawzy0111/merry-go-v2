@@ -10,7 +10,7 @@
 10. reader screen [done]
 11. add setting to filter chapters languages []
 12. add publish date for chapters [done]
-13. add search functionality to sourceScreen []
+13. add search functionality to sourceScreen [done]
 14. add sort functionality to chapters list on mangaDetails [done]
 15. add font size setting and standardize sizes across the app [done]
 16. night reading mode [done]
