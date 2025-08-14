@@ -15,7 +15,7 @@ class Manga {
     url: string;
     imageUrl: string;
     lastChapter: string;
-    lastUpadated: string;
+    lastUpdated: string;
     source: Source;
     data: MangaDetails;
     chapters: Chapter[];
@@ -25,7 +25,7 @@ class Manga {
         url: string;
         imageUrl: string;
         lastChapter: string;
-        lastUpadated: string;
+        lastUpdated: string;
         source: Source;
         data?: MangaDetails;
         chapters?: Chapter[];
@@ -34,7 +34,7 @@ class Manga {
         this.url = params.url;
         this.imageUrl = params.imageUrl;
         this.lastChapter = params.lastChapter;
-        this.lastUpadated = params.lastUpadated;
+        this.lastUpdated = params.lastUpdated;
         this.source = params.source;
         this.data = params.data ?? {
             altTitles: [],
@@ -103,7 +103,7 @@ class Source {
         this.icon = params.icon;
         this.fetchRecentManga = params.fetchRecentManga || (() => Promise.resolve([]));
         this.fetchPopularManga = params.fetchPopularManga || (() => Promise.resolve([]));
-        this.fetchMangaDetails = params.fetchMangaDetails || (() => Promise.resolve(new Manga({ name: '', url: '', imageUrl: '', lastChapter: '', lastUpadated: '', source: this })));
+        this.fetchMangaDetails = params.fetchMangaDetails || (() => Promise.resolve(new Manga({ name: '', url: '', imageUrl: '', lastChapter: '', lastUpdated: '', source: this })));
         this.fetchChapterDetails = params.fetchChapterDetails || (() => Promise.resolve(new Chapter({manga:'', number: 0, url:'', pages:[]})));
         this.fetchSearchResults = params.fetchSearchResults || (() => Promise.resolve([]));
     }

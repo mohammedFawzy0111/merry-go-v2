@@ -115,7 +115,7 @@ mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
                     url,
                     imageUrl,
                     lastChapter,
-                    lastUpadated: lastUpdated,
+                    lastUpdated,
                     source: mangaDex,
                 });
             })
@@ -160,7 +160,7 @@ mangaDex.fetchPopularManga = async (): Promise<Manga[]> => {
                     url,
                     imageUrl,
                     lastChapter,
-                    lastUpadated: lastUpdated,
+                    lastUpdated,
                     source: mangaDex,
                 });
             })
@@ -217,7 +217,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
             url: mangaUrl,
             imageUrl: coverUrl,
             lastChapter,
-            lastUpadated: lastUpdated,
+            lastUpdated,
             source: mangaDex,
             data: details,
             chapters
@@ -230,7 +230,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
             url: mangaUrl,
             imageUrl: "",
             lastChapter: "N/A",
-            lastUpadated: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
             source: mangaDex,
             data: {},
             chapters: []
@@ -278,29 +278,70 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
     }
 }
 
-mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
-    try{
-        const { data } = await axios.get(`${API}/manga`,{
-            headers: MANGA_DEX_HEADERS,
-            params:{
-                title: query,
-                limit: 40,
-                includes: ["cover_art"],
-                availableTranslatedLanguage: ["en", "ar"]
+// Create a cache for tags (name to ID mapping)
+const tagCache = new Map<string, string>();
+
+mangaDex.fetchSearchResults = async(query: string): Promise<Manga[]> => {
+    try {
+        // Check if the query is a tag search (enclosed in [])
+        const isTagSearch = query.startsWith('[') && query.endsWith(']');
+        
+        const params: any = {
+            limit: 40,
+            includes: ["cover_art"],
+            availableTranslatedLanguage: ["en", "ar"],
+            order: { updatedAt: "desc" }
+        };
+
+        if (isTagSearch) {
+            // Extract tag name without brackets
+            const tagName = query.slice(1, -1).trim().toLowerCase();
+            
+            // Check cache first
+            if (tagCache.has(tagName)) {
+                params.includedTags = [tagCache.get(tagName)];
+            } else {
+                // Fetch all tags if not in cache
+                const tagResponse = await axios.get(`${API}/manga/tag`);
+                const allTags = tagResponse.data.data;
+                
+                // Populate cache with all tags
+                allTags.forEach((tag: any) => {
+                    const name = tag.attributes.name.en.toLowerCase();
+                    tagCache.set(name, tag.id);
+                });
+                
+                // Check if our tag exists
+                if (tagCache.has(tagName)) {
+                    params.includedTags = [tagCache.get(tagName)];
+                } else {
+                    return []; // Return empty if tag not found
+                }
             }
+        } else {
+            // Regular title search
+            params.title = query;
+        }
+
+        const { data } = await axios.get(`${API}/manga`, {
+            headers: MANGA_DEX_HEADERS,
+            params
         });
 
         const searchResults = data.data;
         const mangas: Manga[] = [];
 
-        for(const result of searchResults){
+        for (const result of searchResults) {
             const mangaId = result.id;
             const name = getBestTitle(result.attributes);
             const url = `${API}/manga/${mangaId}`;
-            const coverFileName = result.relationships.find((rel:any) => rel.type === "cover_art").attributes.fileName;
-            const coverUrl = `${CDN}/covers/${mangaId}/${coverFileName}.256.jpg`;
+            const coverRel = result.relationships.find((rel: any) => rel.type === "cover_art");
+            const coverFileName = coverRel?.attributes?.fileName;
+            const coverUrl = coverFileName 
+                ? `${CDN}/covers/${mangaId}/${coverFileName}.256.jpg`
+                : ''; // Fallback if no cover found
             const lastChapter = result.attributes.lastChapter || "no chapters";
-            const lastUpadated = result.updatedAt || new Date().toISOString();
+            const lastUpdated = result.attributes.updatedAt || new Date().toISOString();
 
             mangas.push(new Manga({
                 name,
@@ -308,12 +349,12 @@ mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
                 imageUrl: coverUrl,
                 source: mangaDex,
                 lastChapter,
-                lastUpadated
-            }))
+                lastUpdated,
+            }));
         }
         return mangas;
 
-    }catch(error){
+    } catch(error) {
         console.error("Error fetching search results:", error);
         return [];
     }

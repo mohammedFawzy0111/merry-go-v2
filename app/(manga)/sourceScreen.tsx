@@ -44,7 +44,7 @@ const SortDropdown = ({
 };
 
 export default function SourceScreen() {
-  const { sourceName } = useLocalSearchParams();
+  const { sourceName, initialTag } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const isTablet = useWindowDimensions().width >= 768;
@@ -52,7 +52,7 @@ export default function SourceScreen() {
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [mangas, setMangas] = useState<Manga[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>("")
+  const [searchQuery, setSearchQuery] = useState<string>(initialTag ? `[${initialTag}]` : "")
 
   const router = useRouter();
 

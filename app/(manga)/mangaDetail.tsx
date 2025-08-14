@@ -8,14 +8,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    StyleSheet,
-    ToastAndroid,
-    TouchableOpacity,
-    View,
-    ViewStyle,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 import Collapsible from "react-native-collapsible";
 
@@ -60,7 +60,7 @@ export default function MangaDetails() {
       url: (mangaUrl as string) || "",
       imageUrl: "",
       lastChapter: "N/A",
-      lastUpadated: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
       source: placeHolderSource,
       data: {},
       chapters: [],
@@ -109,7 +109,6 @@ export default function MangaDetails() {
 
   // Precompute displayed chapters only when chapters or isReversed changes
   const displayedChapters = useMemo(() => {
-    // return original array reference when not reversed (avoid unnecessary allocations)
     if (!isReversed) return manga.chapters;
     // reversed copy only when requested
     return [...manga.chapters].reverse();
@@ -163,9 +162,18 @@ export default function MangaDetails() {
               keyExtractor={(_, i) => `tag-${i}`}
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
-                <ThemedView variant="surface" style={styles.tagPill}>
-                  <ThemedText variant="subtitle">{item}</ThemedText>
-                </ThemedView>
+                <TouchableOpacity 
+                onPress={ () =>{
+                  router.navigate({
+                    pathname:"/(manga)/sourceScreen",
+                    params: {initialTag: item, sourceName}
+                  })
+                }}
+                >
+                  <ThemedView variant="surface" style={styles.tagPill}>
+                    <ThemedText variant="subtitle">{item}</ThemedText>
+                  </ThemedView>
+                </TouchableOpacity>
               )}
               contentContainerStyle={styles.tagsContent}
             />
@@ -214,6 +222,7 @@ export default function MangaDetails() {
         </ThemedView>
       </ThemedView>
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text]);
 
   // Render item uses stable handler reference (handleGoToChapter)
