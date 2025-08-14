@@ -99,6 +99,7 @@ export default function SourceScreen() {
       }
     };
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     timeoutId = setTimeout(()=> {
       loadManga();
     }, 1000);
@@ -113,7 +114,7 @@ export default function SourceScreen() {
     <ThemedView variant="background" style={styles.container}>
       <ThemedView variant="surface" style={styles.header}>
         <TextInput 
-          style={[styles.searchBar,{ backgroundColor: colors.bg, fontSize: sizes.text }]}
+          style={[styles.searchBar,{ backgroundColor: colors.bg, fontSize: sizes.text, color: colors.text }]}
           placeholder="search"
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}

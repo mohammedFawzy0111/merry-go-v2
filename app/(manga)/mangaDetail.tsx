@@ -6,299 +6,322 @@ import { formatDateString } from "@/utils/fomatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, ToastAndroid, TouchableOpacity, View, ViewStyle } from "react-native";
-import Collapsible from 'react-native-collapsible';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+    ActivityIndicator,
+    FlatList,
+    Image,
+    StyleSheet,
+    ToastAndroid,
+    TouchableOpacity,
+    View,
+    ViewStyle,
+} from "react-native";
+import Collapsible from "react-native-collapsible";
 
 
-const ChapterCard = ({chapter,style,onpress} : {chapter:Chapter, style?:ViewStyle,onpress:()=>void}) => {
-    return(
-        <TouchableOpacity
-            onPress={onpress}
-        >
-            <ThemedView variant="surface" style={[styles.chapterCard, style]}>
-                <ThemedView style={styles.col}>
-                    <ThemedText variant="secondary">{chapter.number}</ThemedText>
-                </ThemedView>
-                <ThemedView style={styles.col}>
-                    {chapter.title && (<ThemedText variant="default">{chapter.title}</ThemedText>)}
-                    <ThemedText variant="subtitle">{formatDateString(chapter.publishedAt)}</ThemedText>
-                </ThemedView>
-            </ThemedView>
-        </TouchableOpacity>
-    )
-}
-
-export default function MangaDetails () {
-    const { mangaUrl, sourceName } = useLocalSearchParams();
-    const { colors } = useTheme();
-    const { sizes } = useFontSize()
-    const router = useRouter()
-    const source = sources.find(el => el.name === sourceName)?.source;
-    const [manga, setManga] = useState<Manga>(new Manga({
-        name: "Unknown",
-        url: mangaUrl as string,
-        imageUrl: "",
-        lastChapter: "N/A",
-        lastUpadated: new Date().toISOString(),
-        source: placeHolderSource,
-        data: {},
-        chapters: []
-    }));
-    const [loading, setLoading] = useState(false);
-    const [detailsCollapsed,setDetailsCollapsed] = useState(true);
-    const [isReversed, setIsReversed] = useState<boolean>(false);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadMangaData = async () => {
-            setLoading(true);
-            try {
-            if (!source) return;
-            const data = await source.fetchMangaDetails(mangaUrl as string);
-            if (!cancelled) setManga(data);
-            } catch (error) {
-                ToastAndroid.show(`failded to load manga: ${error}`, ToastAndroid.LONG)
-                console.error(`Error fetching ${mangaUrl} manga:`, error);
-            } finally {
-            if (!cancelled) setLoading(false);
-            }
-        };
-
-        loadMangaData();
-        return () => { cancelled = true };
-    }, [source, mangaUrl]);
-
-    const goToChapter = (url:string) => {
-        router.navigate({
-            pathname:"/(manga)/readerScreen",
-            params: {chapterUrl: url, sourceName}
-        });
-    }
-
-    const toggleReverse = () => {
-        setIsReversed(!isReversed)
-    }
-
+// eslint-disable-next-line react/display-name
+const ChapterCard = React.memo(
+  ({
+    chapter,
+    style,
+    onPressUrl,
+  }: {
+    chapter: Chapter;
+    style?: ViewStyle;
+    onPressUrl: (url: string) => void;
+  }) => {
     return (
-        <ScrollView 
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer} 
-        >
-            {
-            loading ? (
-            <ActivityIndicator size="large" style={{ marginTop: 50 }} />
-        ) : (
-            <ThemedView>
-                <ThemedView variant="surface" style = {styles.head}>
-                    {/* cover image */}
-                    <View style={styles.coverContainer}>
-                        <Image
-                            source={
-                            manga.imageUrl
-                                ? { uri: manga.imageUrl }
-                                : require("@/assets/images/placeholder.png")
-                            }
-                            style={styles.cover}
-                            resizeMode="cover"
-                        />
-                    </View>
-                    {/* title author and artist and year */}
-                    {/* IMPORTANT: add minWidth: 0 so the text can shrink and wrap correctly inside a flex row */}
-                    <View style={styles.textContainer}>
-                        <ThemedText 
-                            variant="title"
-                            numberOfLines={2}
-                            ellipsizeMode="tail"
-                        >
-                            {manga.name}
-                        </ThemedText>
-                        {manga.data.author && (
-                            <ThemedText 
-                                variant="subtitle" 
-                                style={{flexShrink: 1}}
-                                numberOfLines={2}
-                                ellipsizeMode="tail"
-                            >
-                                {`Author: ${manga.data.author}`}
-                            </ThemedText>
-                        )}
-                        {manga.data.artist && (
-                            <ThemedText 
-                                variant="subtitle" 
-                                style={{flexShrink: 1}}
-                                numberOfLines={2}
-                                ellipsizeMode="tail"
-                            >
-                                {`Artist: ${manga.data.artist}`}
-                            </ThemedText>
-                        )}
-                        {manga.data.status && (
-                            <ThemedText
-                                variant="accent"
-                                style={{flexShrink:1}}
-                            >
-                                {manga.data.status}
-                            </ThemedText>
-                        )}
-                        {manga.data.year && (
-                            <ThemedText
-                                variant="subtitle"
-                                style={{flexShrink:1}}
-                            >
-                                {manga.data.year}
-                            </ThemedText>
-                        )}
-                    </View>
-                </ThemedView>
-                {/* tags */}
-                {manga.data.tags && manga.data.tags.length > 0 && (
-                    <View style={styles.tagsContainer}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.tagsContent}
-                    >
-                        {manga.data.tags.map((tag: string, index: number) => (
-                        <ThemedView 
-                            variant="surface" 
-                            style={styles.tagPill} 
-                            key={index}
-                        >
-                            <ThemedText variant="subtitle">{tag}</ThemedText>
-                        </ThemedView>
-                        ))}
-                    </ScrollView>
-                    </View>
-                )}
-                {/* other manga data */}
-                <Collapsible collapsed={detailsCollapsed} collapsedHeight={120} >
-                    <ThemedView variant="surface" style={styles.body}>
-                        {manga.data.Demographic && (<ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>)}
-                        {manga.data.description && (<ThemedText variant="secondary">{`Description: "${manga.data.description}"`}</ThemedText>)}
-                        {manga.data.altTitles && manga.data.altTitles.length > 0 && (
-                            <View>
-                                <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
-                                {manga.data.altTitles.map(
-                                    (title:string, id:number) => (
-                                        <ThemedText key={id} variant="secondary">{title}</ThemedText>
-                                    )
-                                )}
-                            </View>
-                        )}
-                    </ThemedView>
-                </Collapsible>
-                <View style={styles.collapsibleHeader}>
-                    <TouchableOpacity
-                        onPress={() => setDetailsCollapsed(!detailsCollapsed)}
-                        style={styles.collapsibleButton}
-                    >
-                        <Ionicons 
-                            name={detailsCollapsed ? 'chevron-down' : 'chevron-up'} 
-                            size={sizes.heading}
-                            style={styles.chevron}
-                            color={colors.text}
-                        />
-                    </TouchableOpacity>
-                </View>
+      <TouchableOpacity onPress={() => onPressUrl(chapter.url)}>
+        <ThemedView variant="surface" style={[styles.chapterCard, style]}>
+          <ThemedView style={styles.col}>
+            <ThemedText variant="secondary">{chapter.number}</ThemedText>
+          </ThemedView>
+          <ThemedView style={styles.col}>
+            {chapter.title && <ThemedText variant="default">{chapter.title}</ThemedText>}
+            <ThemedText variant="subtitle">{formatDateString(chapter.publishedAt)}</ThemedText>
+          </ThemedView>
+        </ThemedView>
+      </TouchableOpacity>
+    );
+  }
+);
 
-                <ThemedView variant="background" style={styles.chaptersContainer}>
-                    <ThemedView variant="background" style = {styles.chaptersHeader}>
-                        <ThemedText variant="title" style={{fontSize: sizes.text}}>{"Chapters"}</ThemedText>
-                        <TouchableOpacity onPress={() => {toggleReverse()}}>
-                            <Ionicons name="swap-vertical-sharp" size={sizes.heading} style={styles.chevron} color={colors.text}/>
-                        </TouchableOpacity>
-                    </ThemedView>
-                    <FlatList
-                        data = {manga.chapters}
-                        extraData={isReversed}
-                        renderItem={({item,index}) => {
-                            
-                            const actualIndex = isReversed? manga.chapters.length-1-index : index;
-                            const actualItem = manga.chapters[actualIndex];
-                            return(
-                            <ChapterCard chapter={actualItem} onpress={()=> goToChapter(actualItem.url)} style={{ borderColor: colors.border }}/>
-                            )
-                        }}
-                        keyExtractor={(item) => item.url}
-                        showsVerticalScrollIndicator={false}
-                        scrollEnabled={false}
-                    />
-                </ThemedView>
-            </ThemedView>
+export default function MangaDetails() {
+  const { mangaUrl, sourceName } = useLocalSearchParams();
+  const { colors } = useTheme();
+  const { sizes } = useFontSize();
+  const router = useRouter();
+  const source = sources.find((el) => el.name === sourceName)?.source;
+
+  const [manga, setManga] = useState<Manga>(
+    new Manga({
+      name: "Unknown",
+      url: (mangaUrl as string) || "",
+      imageUrl: "",
+      lastChapter: "N/A",
+      lastUpadated: new Date().toISOString(),
+      source: placeHolderSource,
+      data: {},
+      chapters: [],
+    })
+  );
+
+  const [loading, setLoading] = useState(false);
+  const [detailsCollapsed, setDetailsCollapsed] = useState(true);
+  const [isReversed, setIsReversed] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMangaData = async () => {
+      setLoading(true);
+      try {
+        if (!source) return;
+        const data = await source.fetchMangaDetails(mangaUrl as string);
+        if (!cancelled) setManga(data);
+      } catch (error) {
+        ToastAndroid.show(`failded to load manga: ${error}`, ToastAndroid.LONG);
+        console.error(`Error fetching ${mangaUrl} manga:`, error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadMangaData();
+    return () => {
+      cancelled = true;
+    };
+  }, [source, mangaUrl]);
+
+  // stable navigation handler passed to ChapterCard (prevents changing function ref)
+  const handleGoToChapter = useCallback(
+    (url: string) => {
+      router.navigate({
+        pathname: "/(manga)/readerScreen",
+        params: { chapterUrl: url, sourceName },
+      });
+    },
+    [router, sourceName]
+  );
+
+  const toggleReverse = useCallback(() => setIsReversed((v) => !v), []);
+
+  // Precompute displayed chapters only when chapters or isReversed changes
+  const displayedChapters = useMemo(() => {
+    // return original array reference when not reversed (avoid unnecessary allocations)
+    if (!isReversed) return manga.chapters;
+    // reversed copy only when requested
+    return [...manga.chapters].reverse();
+  }, [manga.chapters, isReversed]);
+
+  // Header component for FlatList (includes cover, metadata, tags, collapsible body)
+  const renderHeader = useCallback(() => {
+    return (
+      <ThemedView>
+        <ThemedView variant="surface" style={styles.head}>
+          <View style={styles.coverContainer}>
+            <Image
+              source={manga.imageUrl ? { uri: manga.imageUrl } : require("@/assets/images/placeholder.png")}
+              style={styles.cover}
+              resizeMode="cover"
+            />
+          </View>
+
+          <View style={styles.textContainer}>
+            <ThemedText variant="title" numberOfLines={2} ellipsizeMode="tail">
+              {manga.name}
+            </ThemedText>
+            {manga.data.author && (
+              <ThemedText variant="subtitle" style={{ flexShrink: 1 }} numberOfLines={2} ellipsizeMode="tail">
+                {`Author: ${manga.data.author}`}
+              </ThemedText>
             )}
-        </ScrollView>
-    )
+            {manga.data.artist && (
+              <ThemedText variant="subtitle" style={{ flexShrink: 1 }} numberOfLines={2} ellipsizeMode="tail">
+                {`Artist: ${manga.data.artist}`}
+              </ThemedText>
+            )}
+            {manga.data.status && (
+              <ThemedText variant="accent" style={{ flexShrink: 1 }}>
+                {manga.data.status}
+              </ThemedText>
+            )}
+            {manga.data.year && (
+              <ThemedText variant="subtitle" style={{ flexShrink: 1 }}>
+                {manga.data.year}
+              </ThemedText>
+            )}
+          </View>
+        </ThemedView>
+
+        {manga.data.tags && manga.data.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            <FlatList
+              data={manga.data.tags}
+              horizontal
+              keyExtractor={(_, i) => `tag-${i}`}
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <ThemedView variant="surface" style={styles.tagPill}>
+                  <ThemedText variant="subtitle">{item}</ThemedText>
+                </ThemedView>
+              )}
+              contentContainerStyle={styles.tagsContent}
+            />
+          </View>
+        )}
+
+        <Collapsible collapsed={detailsCollapsed} collapsedHeight={120}>
+          <ThemedView variant="surface" style={styles.body}>
+            {manga.data.Demographic && (
+              <ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>
+            )}
+            {manga.data.description && (
+              <ThemedText variant="secondary">{`Description: "${manga.data.description}"`}</ThemedText>
+            )}
+            {manga.data.altTitles && manga.data.altTitles.length > 0 && (
+              <View>
+                <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
+                {manga.data.altTitles.map((title: string, id: number) => (
+                  <ThemedText key={id} variant="secondary">
+                    {title}
+                  </ThemedText>
+                ))}
+              </View>
+            )}
+          </ThemedView>
+        </Collapsible>
+
+        <View style={styles.collapsibleHeader}>
+          <TouchableOpacity onPress={() => setDetailsCollapsed((v) => !v)} style={styles.collapsibleButton}>
+            <Ionicons
+              name={detailsCollapsed ? "chevron-down" : "chevron-up"}
+              size={sizes.heading}
+              style={styles.chevron}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <ThemedView variant="background" style={styles.chaptersHeader}>
+          <ThemedText variant="title" style={{ fontSize: sizes.text }}>
+            {"Chapters"}
+          </ThemedText>
+          <TouchableOpacity onPress={toggleReverse}>
+            <Ionicons name="swap-vertical-sharp" size={sizes.heading} style={styles.chevron} color={colors.text} />
+          </TouchableOpacity>
+        </ThemedView>
+      </ThemedView>
+    );
+  }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text]);
+
+  // Render item uses stable handler reference (handleGoToChapter)
+  const renderItem = useCallback(
+    ({ item }: { item: Chapter }) => {
+      return <ChapterCard chapter={item} onPressUrl={handleGoToChapter} style={{ borderColor: colors.border }} />;
+    },
+    [handleGoToChapter, colors.border]
+  );
+
+  // Approx height of one chapter row (used to speed up FlatList layout)
+  const ITEM_HEIGHT = 64;
+
+  if (loading) {
+    return <ActivityIndicator size="large" style={{ marginTop: 50 }} />;
+  }
+
+  return (
+    <FlatList
+      ListHeaderComponent={renderHeader}
+      data={displayedChapters}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.url}
+      showsVerticalScrollIndicator={false}
+      // PERFORMANCE SETTINGS
+      initialNumToRender={12}
+      maxToRenderPerBatch={12}
+      windowSize={10}
+      removeClippedSubviews
+      // getItemLayout helps FlatList compute positions faster
+      getItemLayout={(_, index) => ({
+        length: ITEM_HEIGHT,
+        offset: ITEM_HEIGHT * index,
+        index,
+      })}
+      contentContainerStyle={styles.contentContainer}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        width: "100%",
-        padding: 18
-    },
-    contentContainer: {
-    paddingBottom: 20 // Added bottom padding
+  contentContainer: {
+    paddingBottom: 20,
+    padding: 18,
   },
-    head : {
-        minHeight: 160,
-        flexDirection: "row",
-        gap: 20,
-        padding: 12,
-        marginBottom: 15,
-        alignItems: "flex-start"
-    },
-    coverContainer: {
+  head: {
+    minHeight: 160,
+    flexDirection: "row",
+    gap: 20,
+    padding: 12,
+    marginBottom: 15,
+    alignItems: "flex-start",
+  },
+  coverContainer: {
     width: "30%",
-    aspectRatio: 2/3, // Standard manga cover aspect ratio
+    aspectRatio: 2 / 3,
     borderRadius: 4,
     overflow: "hidden",
   },
-    cover: {
-        width: "100%",
-        height: "100%",
-    },
-    textContainer: {
+  cover: {
+    width: "100%",
+    height: "100%",
+  },
+  textContainer: {
     flex: 1,
     flexDirection: "column",
     gap: 10,
-    minWidth: 0
+    minWidth: 0,
   },
-    tagsContainer: {
-    minHeight: 40, // Ensure container has height
-    width: '100%', // Take full width
+  tagsContainer: {
+    minHeight: 40,
+    width: "100%",
     marginBottom: 12,
   },
   tagsContent: {
-    paddingHorizontal: 8, // Add some horizontal padding
-    gap: 8, // Space between tags
+    paddingHorizontal: 8,
+    gap: 8,
   },
   tagPill: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
+    marginRight: 8,
   },
   collapsibleHeader: {
-        padding: 12,
-        borderRadius: 0,
-        opacity: 0.5,
-        flex:1,
-    },
-    collapsibleButton: {
-        backgroundColor: "transperent",
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    chevron: {
-        marginLeft: 8,
-    },
-  body : {
+    padding: 12,
+    borderRadius: 0,
+    opacity: 0.5,
+    flex: 1,
+  },
+  collapsibleButton: {
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chevron: {
+    marginLeft: 8,
+  },
+  body: {
     padding: 12,
     gap: 12,
     paddingTop: 0,
   },
-  chaptersContainer: {
-    
+  chaptersHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    alignItems: "center",
   },
   chapterCard: {
     flex: 1,
@@ -307,15 +330,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     padding: 12,
     marginBottom: 8,
+    minHeight: 48,
   },
-  chaptersHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12
-  },
-  col : {
+  col: {
     flexDirection: "column",
     justifyContent: "center",
-    alignItems: "center"
-  }
+    alignItems: "center",
+  },
 });
