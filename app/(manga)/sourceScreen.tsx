@@ -118,7 +118,7 @@ export default function SourceScreen() {
               }
               title={item.name}
               cardStyle={[styles.card, isTablet && styles.cardTablet]}
-              titleVariant="subtitle"
+              titleVariant="default"
               onPress={() => {
                 router.navigate({
                   pathname: "/(manga)/mangaDetail",

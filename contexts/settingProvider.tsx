@@ -21,6 +21,8 @@ interface SettingsContextType {
   setFontSize: (size: FontSizeType) => void;
   sizes: {text: number; heading: number, sub: number};
 
+  nightReadingMode: boolean;
+  setNightReadingMode: (mode: boolean) => void;
   // Add more settings here later...
 }
 
@@ -28,7 +30,7 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // === get settings from the store ===
-  const {themePreference,setThemePreference,readingMode,setReadingMode,fontSize, setFontSize} = useSettingsStore();
+  const {themePreference,setThemePreference,readingMode,setReadingMode,fontSize, setFontSize, nightReadingMode, setNightReadingMode} = useSettingsStore();
 
   // === setting up the theme ===
   const systemTheme = useColorScheme();
@@ -49,10 +51,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setReadingMode,
       fontSize,
       setFontSize,
-      sizes
+      sizes,
+      nightReadingMode,
+      setNightReadingMode
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [themePreference, isDark, readingMode, fontSize] // Add new states here as dependencies
+    [themePreference, isDark, readingMode, fontSize, nightReadingMode] // Add new states here as dependencies
   );
 
   return (
@@ -88,6 +92,12 @@ export const useReadingMode = () => {
 export const useFontSize = () => {
   const { fontSize, setFontSize, sizes } = useSettingsContext()
   return { fontSize, setFontSize, sizes };
+}
+
+// for night reading mode onnly
+export const useNightReading = () => {
+  const { nightReadingMode, setNightReadingMode } = useSettingsContext()
+  return { nightReadingMode, setNightReadingMode };
 }
 
 // Full access (if needed)

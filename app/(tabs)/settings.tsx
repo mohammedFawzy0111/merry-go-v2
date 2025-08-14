@@ -2,13 +2,17 @@ import { Dropdown, DropdownOption } from '@/components/Dropdown';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useSettings } from '@/contexts/settingProvider';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Switch } from 'react-native';
 
 type ThemeType = 'light' | 'dark' | 'system';
 type FontSizeType = "xs" | "s" | "m" | "l" | "xl";
 
 export default function Settings() {
-  const { themePreference, setThemePreference, fontSize, setFontSize } = useSettings();
+  const { 
+    themePreference, setThemePreference, 
+    fontSize, setFontSize, 
+    nightReadingMode, setNightReadingMode 
+  } = useSettings();
 
   const themeOptions: DropdownOption<ThemeType>[] = [
     { value: 'light', label: 'Light Theme', icon: 'sunny' },
@@ -26,6 +30,7 @@ export default function Settings() {
 
   return (
     <ThemedView variant="background" style={styles.container}>
+      {/* Theme */}
       <ThemedView variant="surface" style={styles.section}>
         <ThemedText variant="title" style={styles.sectionTitle}>
           Appearance
@@ -38,6 +43,7 @@ export default function Settings() {
         />
       </ThemedView>
 
+      {/* Font Size */}
       <ThemedView variant="surface" style={styles.section}>
         <ThemedText variant="title" style={styles.sectionTitle}>
           Font Size
@@ -47,6 +53,17 @@ export default function Settings() {
           selectedValue={fontSize}
           onSelect={setFontSize}
           placeholder="Select Size"
+        />
+      </ThemedView>
+
+      {/* Night Reading Mode */}
+      <ThemedView variant="surface" style={styles.section}>
+        <ThemedText variant="title" style={styles.sectionTitle}>
+          Night Reading Mode
+        </ThemedText>
+        <Switch
+          value={nightReadingMode}
+          onValueChange={setNightReadingMode}
         />
       </ThemedView>
     </ThemedView>

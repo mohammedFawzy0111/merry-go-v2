@@ -13,4 +13,6 @@
 13. add search functionality to sourceScreen []
 14. add sort functionality to chapters list on mangaDetails [done]
 15. add font size setting and standardize sizes across the app [done]
-16. night reading mode []
+16. night reading mode [done]
+17. tag search mode []
+18. apply pagination for source screen for infinite scroll []

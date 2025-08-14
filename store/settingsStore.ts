@@ -10,11 +10,13 @@ interface SettingsState {
     themePreference: ThemePreference;
     readingMode: ReadingMode;
     fontSize: FontSize;
+    nightReadingMode: boolean;
     // ... other settings
     
     setThemePreference: (theme: ThemePreference) => void;
     setReadingMode: (mode: ReadingMode) => void;
     setFontSize: (size: FontSize) => void;
+    setNightReadingMode: (mode:boolean) => void;
     // ... other setters
 }
 
@@ -24,10 +26,12 @@ export const useSettingsStore = create<SettingsState>()(
       themePreference: "system",
       readingMode: "vertical",
       fontSize: "m",
+      nightReadingMode: false,
       
       setThemePreference: (themePreference) => set({ themePreference }),
       setReadingMode: (readingMode) => set({readingMode}),
-      setFontSize: (fontSize) => set ({fontSize})
+      setFontSize: (fontSize) => set ({fontSize}),
+      setNightReadingMode: (nightReadingMode) => set ({nightReadingMode}),
       // ... other setters
     }),
     {

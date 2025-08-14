@@ -21,8 +21,8 @@ const ChapterCard = ({chapter,style,onpress} : {chapter:Chapter, style?:ViewStyl
                     <ThemedText variant="secondary">{chapter.number}</ThemedText>
                 </ThemedView>
                 <ThemedView style={styles.col}>
-                    {chapter.title && (<ThemedText variant="subtitle">{chapter.title}</ThemedText>)}
-                    <ThemedText variant="secondary" style={{fontSize: 8}}>{formatDateString(chapter.publishedAt)}</ThemedText>
+                    {chapter.title && (<ThemedText variant="default">{chapter.title}</ThemedText>)}
+                    <ThemedText variant="subtitle">{formatDateString(chapter.publishedAt)}</ThemedText>
                 </ThemedView>
             </ThemedView>
         </TouchableOpacity>
