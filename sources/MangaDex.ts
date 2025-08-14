@@ -311,7 +311,6 @@ mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
                 lastUpadated
             }))
         }
-        console.log(mangas)
         return mangas;
 
     }catch(error){
