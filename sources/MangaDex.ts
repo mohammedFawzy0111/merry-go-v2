@@ -284,7 +284,7 @@ mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
             headers: MANGA_DEX_HEADERS,
             params:{
                 title: query,
-                limit: 100,
+                limit: 40,
                 includes: ["cover_art"],
                 availableTranslatedLanguage: ["en", "ar"]
             }
@@ -298,7 +298,7 @@ mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
             const name = getBestTitle(result.attributes);
             const url = `${API}/manga/${mangaId}`;
             const coverFileName = result.relationships.find((rel:any) => rel.type === "cover_art").attributes.fileName;
-            const coverUrl = `${CDN}/cover/${mangaId}/${coverFileName}.256.jpg`;
+            const coverUrl = `${CDN}/covers/${mangaId}/${coverFileName}.256.jpg`;
             const lastChapter = result.attributes.lastChapter || "no chapters";
             const lastUpadated = result.updatedAt || new Date().toISOString();
 
@@ -311,7 +311,7 @@ mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
                 lastUpadated
             }))
         }
-
+        console.log(mangas)
         return mangas;
 
     }catch(error){
