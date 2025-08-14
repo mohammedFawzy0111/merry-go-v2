@@ -29,7 +29,7 @@ export default function Sources() {
               resizeMode="contain"
             />
           )}
-          <ThemedText style={styles.sourceName}>{item.name}</ThemedText>
+          <ThemedText variant="default" style={styles.sourceName}>{item.name}</ThemedText>
         </View>
     </ThemedView>
     </TouchableOpacity>
