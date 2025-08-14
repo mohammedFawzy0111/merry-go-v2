@@ -82,11 +82,11 @@ class Source {
     name: string;
     baseUrl: string;
     icon: string;
-    fetchRecentManga: () => Promise<Manga[]>;
-    fetchPopularManga: () => Promise<Manga[]>;
+    fetchRecentManga: (offset: number) => Promise<Manga[]>;
+    fetchPopularManga: (offset: number) => Promise<Manga[]>;
     fetchMangaDetails: (url: string) => Promise<Manga>;
     fetchChapterDetails: (url: string) => Promise<Chapter>;
-    fetchSearchResults: (query: string) => Promise<Manga[]>;
+    fetchSearchResults: (query: string, offset: number) => Promise<Manga[]>;
 
     constructor(params: {
         name: string;

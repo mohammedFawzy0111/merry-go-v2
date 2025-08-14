@@ -7,6 +7,7 @@ const MANGA_DEX_HEADERS = {
   "Content-Type": "application/json",
   "Accept": "application/json",
 };
+const limit = 20;
 
 const mangaDex = new Source({
     name: 'MangaDex',
@@ -84,14 +85,15 @@ const getBestTitle = (attributes: any): string => {
 };
 
 // Fetch recent manga from MangaDex
-mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
+mangaDex.fetchRecentManga = async (offset: number): Promise<Manga[]> => {
     try {
         const { data } = await axios.get(`${API}/manga`, {
             headers: MANGA_DEX_HEADERS,
             params: {
-                limit: 40,
+                limit,
+                offset,
                 "order[updatedAt]": "desc",
-                includes: ["cover_art", "author", "artist"],
+                includes: ["cover_art"],
             },
         });
         
@@ -129,14 +131,15 @@ mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
 }
 
 // Add this method to the mangaDex object, right after fetchRecentManga
-mangaDex.fetchPopularManga = async (): Promise<Manga[]> => {
+mangaDex.fetchPopularManga = async (offset: number): Promise<Manga[]> => {
     try {
         const { data } = await axios.get(`${API}/manga`, {
             headers: MANGA_DEX_HEADERS,
             params: {
-                limit: 40,
+                limit,
+                offset,
                 "order[followedCount]": "desc", // Sort by most followed manga
-                includes: ["cover_art", "author", "artist"],
+                includes: ["cover_art"],
             },
         });
         
@@ -281,16 +284,17 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
 // Create a cache for tags (name to ID mapping)
 const tagCache = new Map<string, string>();
 
-mangaDex.fetchSearchResults = async(query: string): Promise<Manga[]> => {
+mangaDex.fetchSearchResults = async(query: string, offset: number): Promise<Manga[]> => {
     try {
         // Check if the query is a tag search (enclosed in [])
         const isTagSearch = query.startsWith('[') && query.endsWith(']');
         
         const params: any = {
-            limit: 40,
+            limit,
+            offset,
             includes: ["cover_art"],
             availableTranslatedLanguage: ["en", "ar"],
-            order: { updatedAt: "desc" }
+            "order[followedCount]": "desc",
         };
 
         if (isTagSearch) {

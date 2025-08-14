@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import { Dropdown, DropdownOption } from "@/components/Dropdown";
 import { ThemedCard } from "@/components/ThemedCard";
 import { ThemedText } from "@/components/ThemedText";
@@ -6,7 +7,7 @@ import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, useWindowDimensions } from "react-native";
 
 type SortOption = "popular" | "latest";
@@ -54,6 +55,10 @@ export default function SourceScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>(initialTag ? `[${initialTag}]` : "")
 
+  const [offset,setOffset] = useState<number>(0);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+
   const router = useRouter();
 
   const source = sources.find((s) => s.name === sourceName);
@@ -69,46 +74,94 @@ export default function SourceScreen() {
 
   const sourceModel: Source = source.source;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => {
-    let cancelled = false;
+  const loadManga = useCallback(async (loadMore: boolean = false) => {
+  if ((!loadMore && loading) || (loadMore && isLoadingMore)) return;
+  
+  let cancelled = false;
+  
+  if (loadMore) {
+    setIsLoadingMore(true);
+  } else {
+    setLoading(true);
+  }
+  
+  try {
+    const currentOffset = loadMore ? offset : 0;
+    let data: Manga[] = [];
 
-    const loadManga = async () => {
-      setLoading(true);
-      try {
-        let data: Manga[] = [];
+    if (searchQuery.trim().length > 0) {
+      data = await sourceModel.fetchSearchResults(searchQuery, currentOffset);
+    } else {
+      data = sortBy === "latest"
+        ? await sourceModel.fetchRecentManga(currentOffset)
+        : await sourceModel.fetchPopularManga(currentOffset) ?? [];
+    }
 
-        if(searchQuery.trim().length > 0){
-          data = await sourceModel.fetchSearchResults(searchQuery);
-        } else {
-          data =
-            sortBy === "latest"
-              ? await sourceModel.fetchRecentManga()
-              : await sourceModel.fetchPopularManga() ?? [];
-        }
-
-        if (!cancelled) {
-          setMangas(data);
-        }
-      } catch (err) {
-        ToastAndroid.show(`failed to load source: ${err}`,ToastAndroid.LONG)
-        console.error(`Error fetching ${sortBy} manga:`, err);
-        if (!cancelled) setMangas([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+    if (!cancelled) {
+      if (loadMore) {
+        setMangas(prev => [...prev, ...data]);
+      } else {
+        setMangas(data);
       }
-    };
+      setHasMore(data.length > 0);
+      setOffset(loadMore ? offset + data.length : data.length);
+    }
+  } catch (err) {
+    if (!cancelled) {
+      ToastAndroid.show(`Failed to load manga: ${err}`, ToastAndroid.LONG);
+      if (!loadMore) setMangas([]);
+      setHasMore(false);
+    }
+  } finally {
+    if (!cancelled) {
+      if (loadMore) {
+        setIsLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    timeoutId = setTimeout(()=> {
-      loadManga();
-    }, 1000);
+  return () => {
+    cancelled = true;
+  };
+}, [offset, searchQuery, sortBy, sourceModel, loading, isLoadingMore]);
 
-    return () => {
-      cancelled = true; // prevents setting state after unmount
-      clearTimeout(timeoutId);
-    };
-  }, [sortBy, sourceModel,searchQuery]);
+useEffect(() => {
+  return () => {
+    // Reset all state when component unmounts
+    setMangas([]);
+    setOffset(0);
+    setSearchQuery(initialTag ? `[${initialTag}]` : "");
+  };
+}, []);
+
+  useEffect(() => {
+  const debounceTimer = setTimeout(() => {
+    loadManga(false);
+  }, 1000);
+
+  return () => {
+    clearTimeout(debounceTimer);
+  };
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [searchQuery, sortBy]); // Only trigger when these change
+
+  const handleEndReached = useCallback(() => {
+  if (!isLoadingMore && hasMore && !loading) {
+    loadManga(true);
+  }
+}, [isLoadingMore, hasMore, loading, loadManga]);
+
+  // Loading footer component
+  const renderFooter = () => {
+    if (!isLoadingMore) return null;
+    return (
+      <ThemedView style={{ padding: 20 }}>
+        <ActivityIndicator size="small" />
+      </ThemedView>
+    );
+  };
 
   return (
     <ThemedView variant="background" style={styles.container}>
@@ -150,11 +203,14 @@ export default function SourceScreen() {
               }}
             />
           )}
-          keyExtractor={(item) => item.url}
+          keyExtractor={(item) => `${item.url}-${item.name}`}
           numColumns={isTablet ? 3 : 2}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.1}
+          ListFooterComponent={renderFooter}
         />
       )}
     </ThemedView>
