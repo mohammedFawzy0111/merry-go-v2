@@ -110,27 +110,6 @@ mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
                 const lastChapter = attributes.lastChapter || "no chapters";
                 const lastUpdated = attributes.updatedAt || new Date().toISOString();
 
-                const mangaData = {
-                    altTitles: attributes.altTitles
-                ? attributes.altTitles
-                    .map((titleObj: Record<string, string>) => {
-                        // Get the first (and usually only) value from the object
-                        const firstValue = Object.values(titleObj)[0];
-                        return firstValue || "";
-                    })
-                    .filter(Boolean) // remove empty strings
-                : [],
-                    status: attributes.status || "Unknown",
-                    description: attributes.description["en"] || "",
-                    "original language": attributes.originalLanguage || "en",
-                    Demographic: attributes.publicationDemographic || "Unknown",
-                    year: attributes.year || "Unknown",
-                    tags: attributes.tags.map((tag: any) => tag.attributes.name["en"]) || [],
-                    author: item.relationships.find((rel: any) => rel.type === "author")?.attributes?.name || "Unknown Author",
-                    artist: item.relationships.find((rel: any) => rel.type === "artist")?.attributes?.name || "Unknown Artist",
-                };
-
-                const chapters: Chapter[] = [] // not needed for recent manga, but can be fetched later
                 return new Manga({
                     name: title,
                     url,
@@ -138,8 +117,6 @@ mangaDex.fetchRecentManga = async (): Promise<Manga[]> => {
                     lastChapter,
                     lastUpadated: lastUpdated,
                     source: mangaDex,
-                    data: mangaData,
-                    chapters
                 });
             })
         );
@@ -178,30 +155,6 @@ mangaDex.fetchPopularManga = async (): Promise<Manga[]> => {
                 const lastChapter = attributes.lastChapter || "no chapters";
                 const lastUpdated = attributes.updatedAt || new Date().toISOString();
 
-                const mangaData = {
-                    altTitles: attributes.altTitles
-                ? attributes.altTitles
-                    .map((titleObj: Record<string, string>) => {
-                        // Get the first (and usually only) value from the object
-                        const firstValue = Object.values(titleObj)[0];
-                        return firstValue || "";
-                    })
-                    .filter(Boolean) // remove empty strings
-                : [],
-                    status: attributes.status || "Unknown",
-                    description: attributes.description["en"] || "",
-                    "original language": attributes.originalLanguage || "en",
-                    Demographic: attributes.publicationDemographic || "Unknown",
-                    year: attributes.year || "Unknown",
-                    tags: attributes.tags.map((tag: any) => tag.attributes.name["en"]) || [],
-                    author: item.relationships.find((rel: any) => rel.type === "author")?.attributes?.name || "Unknown Author",
-                    artist: item.relationships.find((rel: any) => rel.type === "artist")?.attributes?.name || "Unknown Artist",
-                };
-
-                // For popular manga, we might not need all chapters immediately
-                // Just fetch basic info and leave chapters for when user selects the manga
-                const chapters: Chapter[] = [];
-
                 return new Manga({
                     name: title,
                     url,
@@ -209,8 +162,6 @@ mangaDex.fetchPopularManga = async (): Promise<Manga[]> => {
                     lastChapter,
                     lastUpadated: lastUpdated,
                     source: mangaDex,
-                    data: mangaData,
-                    chapters
                 });
             })
         );
@@ -294,7 +245,7 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
         });
         const chapterData = chapterReq.data.data;
 
-        const manga = chapterData.relationships.find((rel:any) => rel.type == "manga")["id"] as string || "";
+        const manga = chapterData.relationships.find((rel:any) => rel.type === "manga")["id"] as string || "";
         const title = chapterData.attributes.title || "";
         const chapterNum = Number(chapterData.attributes.chapter) || 0;
         const chapterId = chapterData.id;
@@ -324,6 +275,48 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
             url,
             pages: []
         });
+    }
+}
+
+mangaDex.fetchSearchResults = async(query:string): Promise<Manga[]> => {
+    try{
+        const { data } = await axios.get(`${API}/manga`,{
+            headers: MANGA_DEX_HEADERS,
+            params:{
+                title: query,
+                limit: 100,
+                includes: ["cover_art"],
+                availableTranslatedLanguage: ["en", "ar"]
+            }
+        });
+
+        const searchResults = data.data;
+        const mangas: Manga[] = [];
+
+        for(const result of searchResults){
+            const mangaId = result.id;
+            const name = getBestTitle(result.attributes);
+            const url = `${API}/manga/${mangaId}`;
+            const coverFileName = result.relationships.find((rel:any) => rel.type === "cover_art").attributes.fileName;
+            const coverUrl = `${CDN}/cover/${mangaId}/${coverFileName}.256.jpg`;
+            const lastChapter = result.attributes.lastChapter || "no chapters";
+            const lastUpadated = result.updatedAt || new Date().toISOString();
+
+            mangas.push(new Manga({
+                name,
+                url,
+                imageUrl: coverUrl,
+                source: mangaDex,
+                lastChapter,
+                lastUpadated
+            }))
+        }
+
+        return mangas;
+
+    }catch(error){
+        console.error("Error fetching search results:", error);
+        return [];
     }
 }
 
