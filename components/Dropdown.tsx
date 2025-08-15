@@ -3,7 +3,16 @@ import { ThemedView } from '@/components/ThemedView';
 import { useSettings } from '@/contexts/settingProvider';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { DimensionValue, FlatList, LayoutChangeEvent, LayoutRectangle, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  DimensionValue,
+  FlatList,
+  LayoutChangeEvent,
+  LayoutRectangle,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  Dimensions,
+} from 'react-native';
 import { Portal } from 'react-native-portalize';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -22,6 +31,11 @@ interface DropdownProps<T extends string> {
   placeholder?: string | IoniconsName;
   width?: DimensionValue;
   textSize?: number;
+  /**
+   * If true, only the header icon is shown and header text is hidden.
+   * Defaults to false.
+   */
+  showHeaderIconOnly?: boolean;
 }
 
 export function Dropdown<T extends string>({
@@ -31,12 +45,18 @@ export function Dropdown<T extends string>({
   placeholder = 'Select an option',
   width = 'auto',
   textSize = 16,
+  showHeaderIconOnly = false,
 }: DropdownProps<T>) {
   const { colors, sizes } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [buttonLayout, setButtonLayout] = useState<LayoutRectangle | null>(null);
-  const [measuredLabelWidth, setMeasuredLabelWidth] = useState<number>(0);
-  const [labelFits, setLabelFits] = useState(true);
+
+  // measured maximum width of any option (measured offscreen)
+  const [measuredMaxOptionWidth, setMeasuredMaxOptionWidth] = useState<number>(0);
+
+  // computed menu width and left position to avoid overflow
+  const [menuWidth, setMenuWidth] = useState<number | null>(null);
+  const [menuLeft, setMenuLeft] = useState<number | null>(null);
 
   const rotation = useSharedValue(0);
   const opacity = useSharedValue(0);
@@ -90,37 +110,11 @@ export function Dropdown<T extends string>({
   // sizes used in header
   const chevronSize = sizes.heading;
   const headerIconSize = sizes.heading;
-  const headerPaddingHorizontal = 16; // matches header padding
-  const iconGap = 12; // matches gap used in headerContent style
 
-  // measure visible space and decide whether label fits
-  useEffect(() => {
-    if (!buttonLayout) {
-      setLabelFits(true);
-      return;
-    }
-
-    // compute available space inside header for the label after icon and chevron and paddings
-    // If no selected icon, we will still reserve icon space for the default icon
-    const reservedForIcon = headerIconSize + iconGap;
-    const reservedForChevron = chevronSize + 8; // extra spacing for chevron area
-    const available = buttonLayout.width - (headerPaddingHorizontal * 2) - reservedForIcon - reservedForChevron;
-
-    // measuredLabelWidth is the intrinsic width of the label text
-    // if measuredLabelWidth is 0 (not yet measured), optimistically allow label (it will update once measured)
-    if (measuredLabelWidth === 0) {
-      setLabelFits(true);
-      return;
-    }
-
-    setLabelFits(measuredLabelWidth <= available);
-  }, [buttonLayout, measuredLabelWidth, headerIconSize, chevronSize]);
-
-  // For header text style we pass numberOfLines & ellipsizeMode as props (not inside style object)
+  // header text style — always render as single line with ellipsize
   const headerTextStyle = {
     fontSize: textSize,
     flexShrink: 1,
-    // note: numberOfLines and ellipsizeMode are passed as props below
   };
 
   const optionTextStyle = {
@@ -130,6 +124,44 @@ export function Dropdown<T extends string>({
 
   // Default fallback icon when selected option has no icon
   const fallbackIcon: IoniconsName = 'apps';
+
+  // Determine header label text (if selected or placeholder string)
+  const headerLabel = selectedOption?.label || (typeof placeholder === 'string' ? placeholder : '');
+
+  // Reset measured width when options/text size change
+  useEffect(() => {
+    setMeasuredMaxOptionWidth(0);
+    setMenuWidth(null);
+    setMenuLeft(null);
+  }, [options, textSize, sizes.heading]);
+
+  // When we have both buttonLayout and measuredMaxOptionWidth, compute final menu width & left.
+  useEffect(() => {
+    if (!buttonLayout) return;
+
+    const screenWidth = Dimensions.get('window').width;
+    const margin = 8; // keep small margin from screen edges
+
+    const desiredWidth = Math.max(buttonLayout.width, measuredMaxOptionWidth || 0);
+    const cappedWidth = Math.min(desiredWidth, screenWidth - margin * 2);
+
+    // compute left to keep menu visible
+    let left = buttonLayout.x;
+    if (left + cappedWidth > screenWidth - margin) {
+      left = Math.max(margin, screenWidth - cappedWidth - margin);
+    }
+    if (left < margin) left = margin;
+
+    setMenuWidth(cappedWidth);
+    setMenuLeft(left);
+  }, [buttonLayout, measuredMaxOptionWidth]);
+
+  // Offscreen measurement container: render each option with same visuals and measure its width.
+  // We include checkmark & icon to match menu layout (worst-case).
+  const onMeasureOption = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    setMeasuredMaxOptionWidth(prev => Math.max(prev, w));
+  };
 
   return (
     <>
@@ -151,16 +183,16 @@ export function Dropdown<T extends string>({
               color={colors.accent}
             />
 
-            {/* Visible label (only when it fits). We still render an invisible offscreen label for measurement below. */}
-            {labelFits ? (
+            {/* Show text unless user requested icon-only header */}
+            {!showHeaderIconOnly && (
               <ThemedText
                 style={[headerTextStyle, { marginLeft: 0 }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {selectedOption?.label || (typeof placeholder === 'string' ? placeholder : '')}
+                {headerLabel}
               </ThemedText>
-            ) : null}
+            )}
           </View>
 
           <Animated.View style={animatedChevron}>
@@ -169,19 +201,22 @@ export function Dropdown<T extends string>({
         </TouchableOpacity>
       </ThemedView>
 
-      {/* Offscreen/invisible measurement text to compute the intrinsic width of the label.
-          It's absolutely positioned offscreen so it won't affect layout but still fires onLayout. */}
-      <View style={styles.measureContainer} pointerEvents="none">
-        <ThemedText
-          style={[headerTextStyle, { position: 'absolute' }]}
-          onLayout={(e: LayoutChangeEvent) => {
-            setMeasuredLabelWidth(e.nativeEvent.layout.width);
-          }}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {selectedOption?.label || (typeof placeholder === 'string' ? placeholder : '')}
-        </ThemedText>
+      {/* Offscreen measurement container */}
+      <View style={styles.measureContainer} pointerEvents="none" accessible={false}>
+        {options.map(opt => (
+          <View
+            key={String(opt.value)}
+            style={[styles.option, { backgroundColor: 'transparent' }]}
+            onLayout={onMeasureOption}
+          >
+            {opt.icon && <Ionicons name={opt.icon} size={sizes.text} color={colors.text} />}
+            <ThemedText style={[styles.optionText, optionTextStyle]} numberOfLines={1} ellipsizeMode="tail">
+              {opt.label}
+            </ThemedText>
+            {/* include checkmark for worst-case width measurement */}
+            <Ionicons name="checkmark" size={sizes.text} color={colors.accent} />
+          </View>
+        ))}
       </View>
 
       {isOpen && buttonLayout && (
@@ -196,8 +231,8 @@ export function Dropdown<T extends string>({
               styles.menu,
               {
                 top: buttonLayout.y + buttonLayout.height,
-                left: buttonLayout.x,
-                width: buttonLayout.width,
+                left: menuLeft ?? buttonLayout.x,
+                width: menuWidth ?? buttonLayout.width,
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
               },

@@ -8,16 +8,14 @@ import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, } from "react-native";
 
 type SortOption = "popular" | "latest";
 
 const SortDropdown = ({
-  position = "right",
   value,
   onChange,
 }: {
-  position?: "left" | "right";
   value: SortOption;
   onChange: (value: SortOption) => void;
 }) => {
@@ -28,10 +26,7 @@ const SortDropdown = ({
 
   return (
     <ThemedView
-      style={[
-        position === "right" ? styles.rightPosition : styles.leftPosition,
-        styles.dropdownContainer,
-      ]}
+      style={styles.dropdownContainer}
     >
       <Dropdown
         options={sortOptions}
@@ -39,6 +34,7 @@ const SortDropdown = ({
         onSelect={onChange}
         width={140}
         textSize={12}
+        showHeaderIconOnly={true}
       />
     </ThemedView>
   );
@@ -48,7 +44,6 @@ export default function SourceScreen() {
   const { sourceName, initialTag } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const isTablet = useWindowDimensions().width >= 768;
 
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [mangas, setMangas] = useState<Manga[]>([]);
@@ -174,7 +169,6 @@ useEffect(() => {
           onChangeText={setSearchQuery}
         />
         <SortDropdown
-          position={isTablet ? "right" : "left"}
           value={sortBy}
           onChange={setSortBy}
         />
@@ -193,7 +187,7 @@ useEffect(() => {
                   : require("@/assets/images/placeholder.png")
               }
               title={item.name}
-              cardStyle={[styles.card, isTablet && styles.cardTablet]}
+              cardStyle={[styles.card]}
               titleVariant="default"
               onPress={() => {
                 router.navigate({
@@ -204,7 +198,7 @@ useEffect(() => {
             />
           )}
           keyExtractor={(item) => `${item.url}-${item.name}`}
-          numColumns={isTablet ? 3 : 2}
+          numColumns={2}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -225,7 +219,9 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
     padding: 4,
-    flexDirection: 'row'
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   listContent: {
     paddingBottom: 16,
@@ -237,13 +233,11 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "48%",
-    aspectRatio: 0.6,
+    aspectRatio: 0.7,
   },
-  cardTablet: {
-    width: "31%",
-  },
+  
   dropdownContainer: {
-    width: "auto",
+    flexShrink: 0,
   },
   rightPosition: {
     right: 8,
