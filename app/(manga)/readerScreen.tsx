@@ -1,6 +1,6 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { useFontSize, useTheme } from "@/contexts/settingProvider";
+import { useFontSize, useTheme, useReadingMode } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Chapter } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
@@ -177,7 +177,8 @@ function Page({ uri, onZoomChange, onToggleControls }: PageProps) {
 export default function ChapterReader() {
   const { chapterUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
-  const { sizes } = useFontSize()
+  const { sizes } = useFontSize();
+  const { readingMode } = useReadingMode()
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -187,7 +188,6 @@ export default function ChapterReader() {
   const [loading, setLoading] = useState(true);
   const [controlsVisable, setControlsVisable] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
-  const [readingMode, setReadingMode] = useState("vertical")
   // when any page is zoomed, we disable the FlatList vertical scroll
   const [isAnyZoomed, setIsAnyZoomed] = useState(false);
 
@@ -251,13 +251,17 @@ export default function ChapterReader() {
   const hideControls = useCallback(() => {
     setControlsVisable(false);
   }, []);
-
   const handlePageChange = (event: any) => {
-    const index = Math.floor(
-      event.nativeEvent.contentOffset.y / Dimensions.get("window").height
-    );
+    const offset = readingMode === "vertical" 
+      ? event.nativeEvent.contentOffset.y 
+      : event.nativeEvent.contentOffset.x;
+    const windowSize = readingMode === "vertical" 
+      ? Dimensions.get("window").height 
+      : Dimensions.get("window").width;
+    const index = Math.floor(offset / windowSize);
     setCurrentPage(index);
   };
+  
 
   // Moved conditional return AFTER all hook declarations
   if (loading || !chapter) {
@@ -273,21 +277,25 @@ export default function ChapterReader() {
       <StatusBar hidden={!controlsVisable} animated style="auto" />
       <GestureHandlerRootView style={styles.container}>
         <View style={styles.readerContainer}>
-          <FlatList
-            data={chapter.pages}
-            renderItem={renderItem}
-            keyExtractor={(_, index) => index.toString()}
-            onMomentumScrollEnd={handlePageChange}
-            pagingEnabled = {!isAnyZoomed && !(readingMode === "vertical")}
-            snapToAlignment={readingMode === "vertical"? undefined: "center"}
-            snapToInterval={readingMode === "vertical"? undefined: WINDOW.height}
-            decelerationRate={readingMode === "vertcial"? "normal": "fast"}
-            disableIntervalMomentum={readingMode === "vertical"}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={!isAnyZoomed} // when zoomed, disable list scrolling so pan works
-            removeClippedSubviews
-            windowSize={3}
-          />
+        <FlatList
+          data={chapter.pages}
+          renderItem={renderItem}
+          keyExtractor={(_, index) => index.toString()}
+          onMomentumScrollEnd={handlePageChange}
+          pagingEnabled={!isAnyZoomed}
+          snapToAlignment="center"
+          snapToInterval={WINDOW.width} // Use width for horizontal, height for vertical
+          decelerationRate={readingMode === "vertical" ? "normal" : "fast"}
+          disableIntervalMomentum={readingMode === "vertical"}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={!isAnyZoomed}
+          removeClippedSubviews
+          windowSize={3}
+          horizontal={readingMode !== "vertical"}
+          inverted={readingMode === "rtl"} // this for right-to-left mode
+        />
+          
 
           {/* Top Controls */}
           {controlsVisable && (

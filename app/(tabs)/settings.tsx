@@ -6,12 +6,14 @@ import { StyleSheet, Switch } from 'react-native';
 
 type ThemeType = 'light' | 'dark' | 'system';
 type FontSizeType = "xs" | "s" | "m" | "l" | "xl";
+type ReadingModeType = "vertical" | "ltr" | "rtl";
 
 export default function Settings() {
   const { 
     themePreference, setThemePreference, 
     fontSize, setFontSize, 
-    nightReadingMode, setNightReadingMode 
+    nightReadingMode, setNightReadingMode,
+    readingMode, setReadingMode
   } = useSettings();
 
   const themeOptions: DropdownOption<ThemeType>[] = [
@@ -27,6 +29,12 @@ export default function Settings() {
     { value: "l", label: "Large" },
     { value: "xl", label: "Extra Large" },
   ];
+
+  const readingModeOptions: DropdownOption<ReadingModeType>[] = [
+      { value: "vertical", label: "Vertical Scroll"  },
+      { value: "ltr", label: "left to right" },
+      { value: "rtl", label: "right to left" }
+    ];
 
   return (
     <ThemedView variant="background" style={styles.container}>
@@ -64,6 +72,22 @@ export default function Settings() {
         <Switch
           value={nightReadingMode}
           onValueChange={setNightReadingMode}
+        />
+      </ThemedView>
+      
+      {/* reading mode */}
+      <ThemedView 
+      variant="surface"
+      style={styles.section}
+      >
+        <ThemedText  variant="titel" style={styles.sectionTitle}>
+          Reading Mode
+        </ThemedText>
+        <Dropdown<ReadingModeType>
+          options={readingModeOptions}
+          selectedValue={readingMode}
+          onSelect={setReadingMode}
+          placeholder="Select Size"
         />
       </ThemedView>
     </ThemedView>

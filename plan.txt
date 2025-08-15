@@ -15,6 +15,7 @@
 . night reading mode [done]
 . tag search mode [done]
 . apply pagination for source screen for infinite scroll [done]
+. add reading modes options (vertical, rtl, ltr) [done]
 . add setting to filter chapters languages []
 . add stars rating to manga details []
 . add liberary system []
