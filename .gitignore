@@ -35,7 +35,8 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-
+/android
+/ios
+*.keystore
 app-example
-
 plan.txt

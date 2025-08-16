@@ -17,8 +17,6 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import Collapsible from "react-native-collapsible";
-
 
 // eslint-disable-next-line react/display-name
 const ChapterCard = React.memo(
@@ -38,8 +36,12 @@ const ChapterCard = React.memo(
             <ThemedText variant="secondary">{chapter.number}</ThemedText>
           </ThemedView>
           <ThemedView style={styles.col}>
-            {chapter.title && <ThemedText variant="default">{chapter.title}</ThemedText>}
-            <ThemedText variant="subtitle">{formatDateString(chapter.publishedAt)}</ThemedText>
+            {chapter.title && (
+              <ThemedText variant="default">{chapter.title}</ThemedText>
+            )}
+            <ThemedText variant="subtitle">
+              {formatDateString(chapter.publishedAt)}
+            </ThemedText>
           </ThemedView>
         </ThemedView>
       </TouchableOpacity>
@@ -81,7 +83,10 @@ export default function MangaDetails() {
         const data = await source.fetchMangaDetails(mangaUrl as string);
         if (!cancelled) setManga(data);
       } catch (error) {
-        ToastAndroid.show(`failded to load manga: ${error}`, ToastAndroid.LONG);
+        ToastAndroid.show(
+          `failded to load manga: ${error}`,
+          ToastAndroid.LONG
+        );
         console.error(`Error fetching ${mangaUrl} manga:`, error);
       } finally {
         if (!cancelled) setLoading(false);
@@ -94,7 +99,6 @@ export default function MangaDetails() {
     };
   }, [source, mangaUrl]);
 
-  // stable navigation handler passed to ChapterCard (prevents changing function ref)
   const handleGoToChapter = useCallback(
     (url: string) => {
       router.navigate({
@@ -107,37 +111,52 @@ export default function MangaDetails() {
 
   const toggleReverse = useCallback(() => setIsReversed((v) => !v), []);
 
-  // Precompute displayed chapters only when chapters or isReversed changes
   const displayedChapters = useMemo(() => {
     if (!isReversed) return manga.chapters;
-    // reversed copy only when requested
     return [...manga.chapters].reverse();
   }, [manga.chapters, isReversed]);
 
-  // Header component for FlatList (includes cover, metadata, tags, collapsible body)
   const renderHeader = useCallback(() => {
     return (
       <ThemedView>
         <ThemedView variant="surface" style={styles.head}>
           <View style={styles.coverContainer}>
             <Image
-              source={manga.imageUrl ? { uri: manga.imageUrl } : require("@/assets/images/placeholder.png")}
+              source={
+                manga.imageUrl
+                  ? { uri: manga.imageUrl }
+                  : require("@/assets/images/placeholder.png")
+              }
               style={styles.cover}
               resizeMode="cover"
             />
           </View>
 
           <View style={styles.textContainer}>
-            <ThemedText variant="title" numberOfLines={2} ellipsizeMode="tail">
+            <ThemedText
+              variant="title"
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               {manga.name}
             </ThemedText>
             {manga.data.author && (
-              <ThemedText variant="subtitle" style={{ flexShrink: 1 }} numberOfLines={2} ellipsizeMode="tail">
+              <ThemedText
+                variant="subtitle"
+                style={{ flexShrink: 1 }}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
                 {`Author: ${manga.data.author}`}
               </ThemedText>
             )}
             {manga.data.artist && (
-              <ThemedText variant="subtitle" style={{ flexShrink: 1 }} numberOfLines={2} ellipsizeMode="tail">
+              <ThemedText
+                variant="subtitle"
+                style={{ flexShrink: 1 }}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
                 {`Artist: ${manga.data.artist}`}
               </ThemedText>
             )}
@@ -161,14 +180,15 @@ export default function MangaDetails() {
               horizontal
               keyExtractor={(_, i) => `tag-${i}`}
               showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled" 
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                onPress={ () =>{
-                  router.navigate({
-                    pathname:"/(manga)/sourceScreen",
-                    params: {initialTag: item, sourceName}
-                  })
-                }}
+                <TouchableOpacity
+                  onPress={() => {
+                    router.navigate({
+                      pathname: "/(manga)/sourceScreen",
+                      params: { initialTag: item, sourceName },
+                    });
+                  }}
                 >
                   <ThemedView variant="surface" style={styles.tagPill}>
                     <ThemedText variant="subtitle">{item}</ThemedText>
@@ -180,29 +200,44 @@ export default function MangaDetails() {
           </View>
         )}
 
-        <Collapsible collapsed={detailsCollapsed} collapsedHeight={120}>
-          <ThemedView variant="surface" style={styles.body}>
-            {manga.data.Demographic && (
-              <ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>
-            )}
-            {manga.data.description && (
-              <ThemedText variant="secondary">{`Description: "${manga.data.description}"`}</ThemedText>
-            )}
-            {manga.data.altTitles && manga.data.altTitles.length > 0 && (
-              <View>
-                <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
-                {manga.data.altTitles.map((title: string, id: number) => (
-                  <ThemedText key={id} variant="secondary">
-                    {title}
-                  </ThemedText>
-                ))}
-              </View>
-            )}
-          </ThemedView>
-        </Collapsible>
+        {/* Details Section */}
+        <ThemedView variant="surface" style={styles.body}>
+          {manga.data.Demographic && (
+            <ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>
+          )}
 
+          {manga.data.description && (
+            <ThemedText
+              variant="secondary"
+              numberOfLines={detailsCollapsed ? 3 : undefined}
+            >
+              {`Description: "${manga.data.description}"`}
+            </ThemedText>
+          )}
+
+          {manga.data.altTitles && manga.data.altTitles.length > 0 && (
+            <View>
+              <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
+              {manga.data.altTitles.map((title: string, id: number) => (
+                <ThemedText
+                  key={id}
+                  variant="secondary"
+                  numberOfLines={detailsCollapsed ? 1 : undefined}
+                  ellipsizeMode="tail"
+                >
+                  {title}
+                </ThemedText>
+              ))}
+            </View>
+          )}
+        </ThemedView>
+
+        {/* Toggle Button */}
         <View style={styles.collapsibleHeader}>
-          <TouchableOpacity onPress={() => setDetailsCollapsed((v) => !v)} style={styles.collapsibleButton}>
+          <TouchableOpacity
+            onPress={() => setDetailsCollapsed((v) => !v)}
+            style={styles.collapsibleButton}
+          >
             <Ionicons
               name={detailsCollapsed ? "chevron-down" : "chevron-up"}
               size={sizes.heading}
@@ -217,23 +252,31 @@ export default function MangaDetails() {
             {"Chapters"}
           </ThemedText>
           <TouchableOpacity onPress={toggleReverse}>
-            <Ionicons name="swap-vertical-sharp" size={sizes.heading} style={styles.chevron} color={colors.text} />
+            <Ionicons
+              name="swap-vertical-sharp"
+              size={sizes.heading}
+              style={styles.chevron}
+              color={colors.text}
+            />
           </TouchableOpacity>
         </ThemedView>
       </ThemedView>
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text]);
 
-  // Render item uses stable handler reference (handleGoToChapter)
   const renderItem = useCallback(
     ({ item }: { item: Chapter }) => {
-      return <ChapterCard chapter={item} onPressUrl={handleGoToChapter} style={{ borderColor: colors.border }} />;
+      return (
+        <ChapterCard
+          chapter={item}
+          onPressUrl={handleGoToChapter}
+          style={{ borderColor: colors.border }}
+        />
+      );
     },
     [handleGoToChapter, colors.border]
   );
 
-  // Approx height of one chapter row (used to speed up FlatList layout)
   const ITEM_HEIGHT = 64;
 
   if (loading) {
@@ -247,12 +290,11 @@ export default function MangaDetails() {
       renderItem={renderItem}
       keyExtractor={(item) => item.url}
       showsVerticalScrollIndicator={false}
-      // PERFORMANCE SETTINGS
+      keyboardShouldPersistTaps="handled" 
       initialNumToRender={12}
       maxToRenderPerBatch={12}
       windowSize={10}
       removeClippedSubviews
-      // getItemLayout helps FlatList compute positions faster
       getItemLayout={(_, index) => ({
         length: ITEM_HEIGHT,
         offset: ITEM_HEIGHT * index,
@@ -311,7 +353,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 0,
     opacity: 0.5,
-    flex: 1,
   },
   collapsibleButton: {
     backgroundColor: "transparent",

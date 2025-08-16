@@ -238,17 +238,11 @@ const styles = StyleSheet.create({
   
   dropdownContainer: {
     flexShrink: 0,
-  },
-  rightPosition: {
-    right: 8,
-  },
-  leftPosition: {
-    left: 8,
+    maxWidth: 50,
   },
   searchBar: {
     flex: 1,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    padding: 12,
   },
 });

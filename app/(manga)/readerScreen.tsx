@@ -39,7 +39,8 @@ const DOUBLE_TAP_SCALE = 2;
 
 type PageProps = {
   uri: string;
-  onZoomChange: (zoomed: boolean) => void; // called from UI thread via runOnJS
+  onZoomChange: (zoomed: boolean) => void;
+  readingMode: string;
   onToggleControls: () => void;
 };
 
@@ -52,7 +53,10 @@ function clamp(v: number, a: number, b: number) {
  * Per-page component: handles pinch, pan, double-tap, and single-tap.
  * Keeps its own animated shared values so pages don't interfere.
  */
-function Page({ uri, onZoomChange, onToggleControls }: PageProps) {
+function Page({ uri,
+              onZoomChange,
+              readingMode,
+              onToggleControls }: PageProps) {
   const scale = useSharedValue(1);
   const startScale = useSharedValue(1);
 
@@ -160,15 +164,18 @@ function Page({ uri, onZoomChange, onToggleControls }: PageProps) {
 
   return (
     <GestureDetector gesture={composed}>
-      <Animated.View style={[styles.pageContainer, animatedStyle]}>
+      <Animated.View style={[styles.pageContainer,       animatedStyle]}>
         <Animated.Image
           source={{ uri }}
           style={[
             styles.pageImage,
-            { height: calculatedHeight, width: WINDOW.width }
+            readingMode === "vertical"
+              ? { width: WINDOW.width, height: undefined, aspectRatio }
+              : { height: calculatedHeight, width: WINDOW.width }
           ]}
-          resizeMode="contain"
+          resizeMode={readingMode === "vertical" ? "cover" : "contain"}
         />
+        
       </Animated.View>
     </GestureDetector>
   );
@@ -204,6 +211,7 @@ export default function ChapterReader() {
             // called from UI thread via runOnJS
             setIsAnyZoomed(zoomed);
           }}
+          readingMode={readingMode}
           onToggleControls={toggleControls}
         />
       );
@@ -263,7 +271,6 @@ export default function ChapterReader() {
   };
   
 
-  // Moved conditional return AFTER all hook declarations
   if (loading || !chapter) {
     return (
       <ThemedView variant="background" style={styles.container}>
@@ -282,9 +289,9 @@ export default function ChapterReader() {
           renderItem={renderItem}
           keyExtractor={(_, index) => index.toString()}
           onMomentumScrollEnd={handlePageChange}
-          pagingEnabled={!isAnyZoomed}
-          snapToAlignment="center"
-          snapToInterval={WINDOW.width} // Use width for horizontal, height for vertical
+          pagingEnabled={readingMode !== 'vertical' && !isAnyZoomed}
+          snapToAlignment={readingMode !== 'vertical'? "center" : undefined}
+          snapToInterval={readingMode !== 'vertical'? WINDOW.width: undefined}
           decelerationRate={readingMode === "vertical" ? "normal" : "fast"}
           disableIntervalMomentum={readingMode === "vertical"}
           showsVerticalScrollIndicator={false}
@@ -295,9 +302,7 @@ export default function ChapterReader() {
           horizontal={readingMode !== "vertical"}
           inverted={readingMode === "rtl"} // this for right-to-left mode
         />
-          
 
-          {/* Top Controls */}
           {controlsVisable && (
             <View
               style={[
@@ -321,7 +326,6 @@ export default function ChapterReader() {
             </View>
           )}
 
-          {/* Bottom Controls */}
           {controlsVisable && (
             <View
               style={[
