@@ -7,8 +7,8 @@ import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, } from "react-native";
+import { useMemo, useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, Dimensions } from "react-native";
 
 type SortOption = "popular" | "latest";
 
@@ -55,8 +55,17 @@ export default function SourceScreen() {
 
   const router = useRouter();
 
+  const screenWidth = Dimensions.get('window').width;
+
+  const ITEM_MIN_WIDTH = 160;
+  const ITEM_MARGIN = 8;
+
+  const numColumns = useMemo(()=>{
+    return Math.floor(screenWidth / (ITEM_MIN_WIDTH + ITEM_MARGIN * 2));
+  }, [screenWidth]);
+
+
   const source = sources.find((s) => s.name === sourceName);
-  let timeoutId: ReturnType<typeof setTimeout>;
 
   if (!source) {
     return (
@@ -191,6 +200,7 @@ useEffect(() => {
       ) : (
         <FlatList
           data={mangas}
+          key={numColumns}
           renderItem={({ item }) => (
             <ThemedCard
               imageSource={
@@ -210,7 +220,7 @@ useEffect(() => {
             />
           )}
           keyExtractor={(item) => item.id}
-          numColumns={2}
+          numColumns={numColumns}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -239,12 +249,12 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   columnWrapper: {
-    justifyContent: "space-between",
+    justifyContent: "space-evenly",
     marginBottom: 16,
     gap: 16,
   },
   card: {
-    width: "48%",
+    minWidth: 160,
     aspectRatio: 0.7,
   },
   
