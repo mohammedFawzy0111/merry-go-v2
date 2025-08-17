@@ -102,6 +102,7 @@ mangaDex.fetchRecentManga = async (offset: number): Promise<Manga[]> => {
                 const attributes = item.attributes;
                 const title = getBestTitle(attributes);
                 const url = `${API}/manga/${item.id}`;
+                const id = item.id || `${title} + ${url}`;
 
                 const coverRel = item.relationships.find((rel: any) => rel.type === "cover_art");
                 let imageUrl = "";
@@ -113,6 +114,7 @@ mangaDex.fetchRecentManga = async (offset: number): Promise<Manga[]> => {
                 const lastUpdated = attributes.updatedAt || new Date().toISOString();
 
                 return new Manga({
+                    id,
                     name: title,
                     url,
                     imageUrl,
@@ -148,6 +150,7 @@ mangaDex.fetchPopularManga = async (offset: number): Promise<Manga[]> => {
                 const attributes = item.attributes;
                 const title = getBestTitle(attributes);
                 const url = `${API}/manga/${item.id}`;
+                const id = item.id || `${title} + ${url}`;
 
                 const coverRel = item.relationships.find((rel: any) => rel.type === "cover_art");
                 let imageUrl = "";
@@ -159,6 +162,7 @@ mangaDex.fetchPopularManga = async (offset: number): Promise<Manga[]> => {
                 const lastUpdated = attributes.updatedAt || new Date().toISOString();
 
                 return new Manga({
+                    id,
                     name: title,
                     url,
                     imageUrl,
@@ -216,6 +220,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
 
         const chapters: Chapter[] = await getChapters(mangaData.id,title);
         return new Manga({
+            id: mangaData.id || `${title} + ${mangaUrl}`,
             name: title,
             url: mangaUrl,
             imageUrl: coverUrl,
@@ -229,6 +234,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
     }catch (error) {
         console.error("Error fetching manga details:", error);
         return new Manga({
+            id: '',
             name: "Unknown",
             url: mangaUrl,
             imageUrl: "",
@@ -348,6 +354,7 @@ mangaDex.fetchSearchResults = async(query: string, offset: number): Promise<Mang
             const lastUpdated = result.attributes.updatedAt || new Date().toISOString();
 
             mangas.push(new Manga({
+                id: mangaId,
                 name,
                 url,
                 imageUrl: coverUrl,

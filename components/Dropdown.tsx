@@ -258,17 +258,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    padding: 16,
+    padding: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minWidth: 100,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minWidth: 0,
+    gap: 8,
   },
   menu: {
     position: 'absolute',

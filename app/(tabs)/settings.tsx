@@ -1,8 +1,8 @@
-import { Dropdown, DropdownOption } from '@/components/Dropdown';
+ import { Dropdown, DropdownOption } from '@/components/Dropdown';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useSettings } from '@/contexts/settingProvider';
-import { StyleSheet, Switch } from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 
 type ThemeType = 'light' | 'dark' | 'system';
 type FontSizeType = "xs" | "s" | "m" | "l" | "xl";
@@ -13,7 +13,7 @@ export default function Settings() {
     themePreference, setThemePreference, 
     fontSize, setFontSize, 
     nightReadingMode, setNightReadingMode,
-    readingMode, setReadingMode
+    readingMode, setReadingMode, sizes
   } = useSettings();
 
   const themeOptions: DropdownOption<ThemeType>[] = [
@@ -31,64 +31,70 @@ export default function Settings() {
   ];
 
   const readingModeOptions: DropdownOption<ReadingModeType>[] = [
-      { value: "vertical", label: "Vertical Scroll"  },
-      { value: "ltr", label: "left to right" },
-      { value: "rtl", label: "right to left" }
-    ];
+    { value: "vertical", label: "Vertical Scroll" },
+    { value: "ltr", label: "Left to Right" },
+    { value: "rtl", label: "Right to Left" }
+  ];
+
+  const groupTitleStyle = {
+    fontSize: sizes.heading
+  }
+  const labelStyle = {
+    fontSize: sizes.text
+  }
 
   return (
     <ThemedView variant="background" style={styles.container}>
-      {/* Theme */}
-      <ThemedView variant="surface" style={styles.section}>
-        <ThemedText variant="title" style={styles.sectionTitle}>
+      {/* Appearance Group */}
+      <ThemedView variant="surface" style={styles.group}>
+        <ThemedText variant="title" style={[styles.groupTitle, groupTitleStyle]}>
           Appearance
         </ThemedText>
-        <Dropdown<ThemeType>
-          options={themeOptions}
-          selectedValue={themePreference}
-          onSelect={setThemePreference}
-          placeholder="Select theme"
-        />
+        
+        <View style={styles.settingItem}>
+          <ThemedText style={[styles.settingLabel, labelStyle]}>Theme</ThemedText>
+          <Dropdown<ThemeType>
+            options={themeOptions}
+            selectedValue={themePreference}
+            onSelect={setThemePreference}
+            placeholder="Select theme"
+          />
+        </View>
+        
+        <View style={styles.settingItem}>
+          <ThemedText style={styles.settingLabel}>Font Size</ThemedText>
+          <Dropdown<FontSizeType>
+            options={fontSizeOptions}
+            selectedValue={fontSize}
+            onSelect={setFontSize}
+            placeholder="Select size"
+          />
+        </View>
       </ThemedView>
 
-      {/* Font Size */}
-      <ThemedView variant="surface" style={styles.section}>
-        <ThemedText variant="title" style={styles.sectionTitle}>
-          Font Size
+      {/* Reading Group */}
+      <ThemedView variant="surface" style={styles.group}>
+        <ThemedText variant="title" style={styles.groupTitle}>
+          Reading Settings
         </ThemedText>
-        <Dropdown<FontSizeType>
-          options={fontSizeOptions}
-          selectedValue={fontSize}
-          onSelect={setFontSize}
-          placeholder="Select Size"
-        />
-      </ThemedView>
-
-      {/* Night Reading Mode */}
-      <ThemedView variant="surface" style={styles.section}>
-        <ThemedText variant="title" style={styles.sectionTitle}>
-          Night Reading Mode
-        </ThemedText>
-        <Switch
-          value={nightReadingMode}
-          onValueChange={setNightReadingMode}
-        />
-      </ThemedView>
-      
-      {/* reading mode */}
-      <ThemedView 
-      variant="surface"
-      style={styles.section}
-      >
-        <ThemedText  variant="titel" style={styles.sectionTitle}>
-          Reading Mode
-        </ThemedText>
-        <Dropdown<ReadingModeType>
-          options={readingModeOptions}
-          selectedValue={readingMode}
-          onSelect={setReadingMode}
-          placeholder="Select Size"
-        />
+        
+        <View style={styles.settingItem}>
+          <ThemedText style={styles.settingLabel}>Night Mode</ThemedText>
+          <Switch
+            value={nightReadingMode}
+            onValueChange={setNightReadingMode}
+          />
+        </View>
+        
+        <View style={styles.settingItem}>
+          <ThemedText style={styles.settingLabel}>Reading Direction</ThemedText>
+          <Dropdown<ReadingModeType>
+            options={readingModeOptions}
+            selectedValue={readingMode}
+            onSelect={setReadingMode}
+            placeholder="Select mode"
+          />
+        </View>
       </ThemedView>
     </ThemedView>
   );
@@ -97,18 +103,25 @@ export default function Settings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 12,
-    gap: 16,
+    padding: 16,
+    gap: 20,
   },
-  section: {
+  group: {
     borderRadius: 12,
     padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8
+    gap: 12,
   },
-  sectionTitle: {
-    width: "auto"
-  }
+  groupTitle: {
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  settingLabel: {
+    fontSize: 16,
+  },
 });

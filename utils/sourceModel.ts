@@ -11,6 +11,7 @@ interface MangaDetails {
 }
 
 class Manga {
+    id: string;
     name: string;
     url: string;
     imageUrl: string;
@@ -21,6 +22,7 @@ class Manga {
     chapters: Chapter[];
 
     constructor(params: {
+        id: string;
         name: string;
         url: string;
         imageUrl: string;
@@ -30,6 +32,7 @@ class Manga {
         data?: MangaDetails;
         chapters?: Chapter[];
     }) {
+        this.id = params.id;
         this.name = params.name;
         this.url = params.url;
         this.imageUrl = params.imageUrl;
