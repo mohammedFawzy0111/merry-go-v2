@@ -6,7 +6,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, } from "react-native";
 
@@ -32,7 +32,6 @@ const SortDropdown = ({
         options={sortOptions}
         selectedValue={value}
         onSelect={onChange}
-        width={140}
         textSize={12}
         showHeaderIconOnly={true}
       />
@@ -130,6 +129,19 @@ useEffect(() => {
     setSearchQuery(initialTag ? `[${initialTag}]` : "");
   };
 }, []);
+  
+  useFocusEffect(
+    useCallback(() => {
+      // Reset state when screen comes into focus
+      setMangas([]);
+      setOffset(0);
+      setSearchQuery(initialTag ? `[${initialTag}]` : "");
+      setSortBy("popular");
+      setHasMore(true);
+      
+      return () => {};
+    }, [initialTag])
+  );  
 
   useEffect(() => {
   const debounceTimer = setTimeout(() => {
@@ -197,7 +209,7 @@ useEffect(() => {
               }}
             />
           )}
-          keyExtractor={(item) => `${item.url}-${item.name}`}
+          keyExtractor={(item) => item.id}
           numColumns={2}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
@@ -237,8 +249,8 @@ const styles = StyleSheet.create({
   },
   
   dropdownContainer: {
-    flexShrink: 0,
-    maxWidth: 50,
+    flexShrink:1,
+    maxWidth: "20%",
   },
   searchBar: {
     flex: 1,
