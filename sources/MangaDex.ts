@@ -16,7 +16,7 @@ const mangaDex = new Source({
 });
 
 // populate chapters
-const getChapters = async (mangaId: string, mangaTitle:string): Promise<Chapter[]> => {
+const getChapters = async (mangaId: string): Promise<Chapter[]> => {
     // Fetch chapters with pagination
     let chapters: Chapter[] = [];
     let offset = 0;
@@ -46,7 +46,7 @@ const getChapters = async (mangaId: string, mangaTitle:string): Promise<Chapter[
                     number: chapterNum,
                     url: chapterUrl,
                     title: ch.attributes.title || `Chapter ${chapterNum}`,
-                    manga: mangaTitle,
+                    manga: `${API}/manga/${mangaId}`,
                     publishedAt: ch.attributes.publishAt || new Date().toISOString(),
                     pages: [] // not needed here
                 });
@@ -218,7 +218,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
             artist: mangaData.relationships.find((rel: any) => rel.type === "artist")?.attributes?.name || "Unknown Artist",
         }
 
-        const chapters: Chapter[] = await getChapters(mangaData.id,title);
+        const chapters: Chapter[] = await getChapters(mangaData.id);
         return new Manga({
             id: mangaData.id || `${title} + ${mangaUrl}`,
             name: title,
@@ -254,7 +254,7 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
         });
         const chapterData = chapterReq.data.data;
 
-        const manga = chapterData.relationships.find((rel:any) => rel.type === "manga")["id"] as string || "";
+        const mangaId = chapterData.relationships.find((rel:any) => rel.type === "manga")["id"] as string || "";
         const title = chapterData.attributes.title || "";
         const chapterNum = Number(chapterData.attributes.chapter) || 0;
         const chapterId = chapterData.id;
@@ -269,7 +269,7 @@ mangaDex.fetchChapterDetails = async(url:string): Promise<Chapter> => {
 
         const pages: string[] = fileNames.map((name:string) => `${baseUrl}/data/${hash}/${name}`) || [];
         return new Chapter({
-            manga,
+            manga: `${API}/manga/${mangaId}`,
             title,
             number: chapterNum,
             url,

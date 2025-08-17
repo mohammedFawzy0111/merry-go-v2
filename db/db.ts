@@ -1,3 +1,4 @@
+import {Chapter, Manga} from "@/utils/sourceModel";
 import { open } from "react-native-quick-sqlite";
 
 const db = open({ name: "manga.db" });
@@ -7,81 +8,90 @@ export function initDb() {
   db.execute(`
     CREATE TABLE IF NOT EXISTS mangas (
       id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      coverUrl TEXT,
+      name TEXT,
+      url TEXT,
+      imageUrl TEXT,
+      lastChapter TEXT,
+      lastUpdated TEXT,
       source TEXT,
-      author TEXT,
-      artist TEXT,
-      status TEXT,
-      description TEXT
+      category TEXT DEFAULT 'uncategorized',
+      data TEXT
     );
   `);
 
   db.execute(`
     CREATE TABLE IF NOT EXISTS chapters (
       id TEXT PRIMARY KEY,
-      mangaId TEXT NOT NULL,
+      manga TEXT NOT NULL,
       title TEXT NOT NULL,
       number REAL,
-      read INTEGER DEFAULT 0,
-      FOREIGN KEY(mangaId) REFERENCES mangas(id)
+      url TEXT UINQUE NOT NULL,
+      publishedAt TEXT,
+      pages TEXT,
+      read TEXT DEFAULT '0',
+      FOREIGN KEY(manga) REFERENCES mangas(url) ON DELETE CASCADE
     );
   `);
 }
 
 // Add manga
-export function addManga(manga: {
-  id: string;
-  title: string;
-  coverUrl?: string;
-  source?: string;
-  author?: string;
-  artist?: string;
-  status?: string;
-  description?: string;
-}) {
+export function addManga(manga: Manga, category: string = 'uncategorized') {
   db.execute(
     `INSERT OR REPLACE INTO mangas 
-      (id, title, coverUrl, source, author, artist, status, description) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, name, url, imageUrl, lastChapter, lastUpdated, source, category, data) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       manga.id,
-      manga.title,
-      manga.coverUrl || null,
-      manga.source || null,
-      manga.author || null,
-      manga.artist || null,
-      manga.status || null,
-      manga.description || null,
+      manga.name,
+      manga.url || null,
+      manga.imageUrl || null,
+      manga.lastChapter || null,
+      manga.lastUpdated || null,
+      manga.source.name || null,
+      category,
+      JSON.stringify(manga.data ?? {})
     ]
   );
 }
 
 // Get all mangas
-export function getMangas(): any[] {
-  const result = db.execute("SELECT * FROM mangas ORDER BY title ASC");
-  return result.rows?._array || [];
-}
-
-// Add chapters (bulk insert)
-export function addChapters(mangaId: string, chapters: { id: string; title: string; number: number }[]) {
-  db.transaction((tx) => {
-    for (const ch of chapters) {
-      tx.execute(
-        `INSERT OR REPLACE INTO chapters (id, mangaId, title, number, read) VALUES (?, ?, ?, ?, ?)`,
-        [ch.id, mangaId, ch.title, ch.number, 0]
-      );
+export function getMangas(): Promise<any[]> {
+  return new Promise((resove,reject) => {
+    try {
+      const result = db.execute('SELECT * FROM mangas');
+      resove(result.rows?._array ?? []);
+    } catch(e) {
+      reject(e)
     }
   });
 }
 
-// Get chapters for manga
-export function getChapters(mangaId: string): any[] {
-  const result = db.execute("SELECT * FROM chapters WHERE mangaId = ? ORDER BY number ASC", [mangaId]);
-  return result.rows?._array || [];
+// Add chapter
+export function addChapter(chapter: Chapter) {
+  db.execute('INSERT OR REPLACE INTO chapters (manga, title, number, url, publishedAt, pages) VALUES (?, ?, ?, ?, ?, ?)', [
+  chapter.manga,
+  chapter.title,
+  chapter.number,
+  chapter.url,
+  chapter.publishedAt,
+  JSON.stringify(chapter.pages ?? []),
+  ]);
 }
 
-// Mark chapter read/unread
-export function setChapterRead(chapterId: string, read: boolean) {
-  db.execute("UPDATE chapters SET read = ? WHERE id = ?", [read ? 1 : 0, chapterId]);
+// Get chapters for manga
+export function getChapters(manga: string): Promise<any> {
+  return new Promise((resolve,reject) => {
+    try{
+      const result = db.execute('SELECT * FROM chapters WHERE manga = ? ORDER BY number DESC', [manga]);
+      resolve(result.rows?._array ?? []);
+    } catch(e){
+      reject(e)
+    }
+  });
+}
+
+// delete a manga and cascade delete chapters
+
+export function deleteManga(mangaUrl: string) {
+  db.execute('DELETE FROM manga WHERE url = ?', [mangaUrl])
 }
