@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { placeHolderSource, sources } from "@/sources";
+import { useMangaStore } from "@/store/mangaStore";
 import { formatDateString } from "@/utils/fomatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,6 +54,7 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
+  const { mangas, addManga, addChapters, removeManga } = useMangaStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -69,6 +71,7 @@ export default function MangaDetails() {
       chapters: [],
     })
   );
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(false)
 
   const [loading, setLoading] = useState(false);
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
@@ -95,9 +98,11 @@ export default function MangaDetails() {
     };
 
     loadMangaData();
+    if(mangas.some((item) => item.url === manga.url))
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, mangaUrl]);
 
   const handleGoToChapter = useCallback(
@@ -111,6 +116,16 @@ export default function MangaDetails() {
   );
 
   const toggleReverse = useCallback(() => setIsReversed((v) => !v), []);
+  const toggleBookmark = async() => {
+    if(isBookmarked){
+      await removeManga(manga.url);
+      setIsBookmarked(false);
+    } else {
+      await addManga(manga);
+      await addChapters(manga.chapters);
+      setIsBookmarked(true);
+    }
+  }
 
   const displayedChapters = useMemo(() => {
     if (!isReversed) return manga.chapters;
@@ -180,15 +195,17 @@ export default function MangaDetails() {
           <ThemedView variant="default">
             <TouchableOpacity 
               style={styles.addToLib}
+              onPress = {toggleBookmark}
             >
-              <Ionicons name="add-sharp" color={colors.accent} size={sizes.heading}/>
+              {isBookmarked? (<Ionicons name="bookmark" size={sizes.heading} color={colors.accent} />) :(<Ionicons name="add-sharp" color={colors.textSecondary} size={sizes.heading}/>)}
             </TouchableOpacity>
           </ThemedView>
           <ThemedView variant="default" style={{
             borderColor: colors.border,
             borderWidth: 2,
+            flex: 1
           }}>
-            <ThemedText variant="title">{`${manga.data.rating ? Math.round(manga.data.rating) : 0}/10`} <Ionicons name='star' color={colors.accent}/></ThemedText>
+            <ThemedText variant="title">{`${manga.data.rating ? Math.round(manga.data.rating * 10)/10 : 0}/10`} <Ionicons name='star' color={colors.accent}/></ThemedText>
           </ThemedView>
         </ThemedView>
 
@@ -359,12 +376,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   libContainer: {
+    flex: 1,
     padding: 12,
+    flexDirection: "row",
     justifyContent: "space-evenly",
     alignItems: "center",
     gap: 12,
   },
   addToLib: {
+    flex: 1,
     padding: 8,
     justifyContent: "center",
     alignItems: "center"
