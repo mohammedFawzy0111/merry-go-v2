@@ -1,7 +1,7 @@
 import { SettingsProvider, useNightReading } from "@/contexts/settingProvider";
-import {useMangaStore} from "@/store/mangaStore";
+import { initDb } from "@/db/db";
 import { Stack } from "expo-router";
-import {useEffect} from "react";
+import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Host } from "react-native-portalize";
 
@@ -14,13 +14,9 @@ function BlueLightOverlay () {
 }
 
 export default function RootLayout() {
-  const { loadMangas } = useMangaStore()
   useEffect(()=>{
-    const load = async()=>{
-      await loadMangas();
-    }
-    load();
-  },[])
+    initDb();
+  }, []);
   return (
     <SettingsProvider>
       <Host>
@@ -37,7 +33,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255, 150, 50, 0.08)", // warm orange tint
+    backgroundColor: "rgba(250, 152, 61, 0.08)", // warm orange tint
     zIndex: 999999, // force it to render above all
   },
 })

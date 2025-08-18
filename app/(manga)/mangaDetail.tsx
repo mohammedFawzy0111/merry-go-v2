@@ -87,7 +87,6 @@ export default function MangaDetails() {
         const data = await source.fetchMangaDetails(mangaUrl as string);
         if (!cancelled) {
           setManga(data)
-          setIsBookmarked(mangas.some((item) => item.url === manga.url));
         };
       } catch (error) {
         ToastAndroid.show(
@@ -104,8 +103,11 @@ export default function MangaDetails() {
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, mangaUrl]);
+
+  useEffect(() => {
+    setIsBookmarked(mangas.some((item) => item.url === manga.url));
+  }, [mangas, manga.url]);
 
   const handleGoToChapter = useCallback(
     (url: string) => {

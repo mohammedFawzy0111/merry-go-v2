@@ -1,16 +1,16 @@
+import { ThemedCard } from "@/components/ThemedCard";
+import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { useMangaStore } from '@/store/mangaStore';
 import { useRouter } from "expo-router";
-import { useMangaStore } from '@/store/mangaStore'
-import {ThemedCard} from "@/components/ThemedCard";
-import {Dimensions, FlatList, StyleSheet} from "react-native";
-import {useMemo} from "react";
-import {ThemedText} from "@/components/ThemedText";
+import { useEffect, useMemo } from "react";
+import { Dimensions, FlatList, StyleSheet } from "react-native";
 
 
 
 export default function Home() {
   const router = useRouter()
-  const { mangas } = useMangaStore();
+  const { mangas, loadMangas } = useMangaStore();
 
   const screenWidth = Dimensions.get('window').width;
   const ITEM_MIN_WIDTH = 160;
@@ -20,6 +20,9 @@ export default function Home() {
     return Math.floor(screenWidth / (ITEM_MIN_WIDTH + ITEM_MARGIN * 2));
   }, [screenWidth])
 
+  useEffect(() => {
+    loadMangas();
+  }, []);
 
   const empty = () => {
     return (

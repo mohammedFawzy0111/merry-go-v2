@@ -1,4 +1,4 @@
-import {Chapter, Manga} from "@/utils/sourceModel";
+import { Chapter, Manga } from "@/utils/sourceModel";
 import { open } from "react-native-quick-sqlite";
 
 const db = open({ name: "manga.db" });
@@ -109,5 +109,5 @@ export function getChapters(manga: string): Chapter[] {
 // delete a manga and cascade delete chapters
 
 export function deleteManga(mangaUrl: string) {
-  db.execute('DELETE FROM manga WHERE url = ?', [mangaUrl])
+  db.execute('DELETE FROM mangas WHERE url = ?', [mangaUrl])
 }

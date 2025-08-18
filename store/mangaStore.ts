@@ -1,6 +1,6 @@
+import { addChapters, addManga, deleteManga, getChapters, getMangas } from '@/db/db';
+import { Chapter, Manga } from '@/utils/sourceModel';
 import { create } from 'zustand';
-import { addChapters, addManga, deleteManga, getChapters, getMangas, initDb } from '@/db/db';
-import {Chapter, Manga} from '@/utils/sourceModel';
 
 interface MangaStore {
   mangas: Manga[];
@@ -20,20 +20,28 @@ export const useMangaStore = create<MangaStore>(
     loading: false,
 
     loadMangas: async () => {
-      set({loading: true});
-      initDb();
-      const all = getMangas();
-      set({ mangas: all, loading: false });
+      try {
+        set({loading: true});
+        const all = await getMangas();
+        set({ mangas: all, loading: false });
+      } catch (error) {
+        console.error('Failed to load mangas:', error);
+        set({loading: false});
+      }
     },
 
     addManga: async (manga) => {
       addManga(manga);
-      await get().loadMangas();
+      set((state) => ({
+        mangas: [...state.mangas, manga]
+      }));
     },
 
-    removeManga: async (manaUrl) => {
-      deleteManga(manaUrl);
-      await get().loadMangas();
+    removeManga: async (mangaUrl) => {
+      deleteManga(mangaUrl);
+      set((state) => ({
+        mangas: state.mangas.filter(m => m.url !== mangaUrl)
+      }));
     },
 
     loadChapters: async (mangaUrl) => {
