@@ -55,39 +55,55 @@ export function addManga(manga: Manga, category: string = 'uncategorized') {
 }
 
 // Get all mangas
-export function getMangas(): Promise<any[]> {
-  return new Promise((resove,reject) => {
-    try {
-      const result = db.execute('SELECT * FROM mangas');
-      resove(result.rows?._array ?? []);
-    } catch(e) {
-      reject(e)
-    }
-  });
+export function getMangas(): Manga[] {
+  const result = db.execute("SELECT * FROM mangas");
+  return result.rows?._array.map((row:any) =>
+    new Manga({
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      imageUrl: row.imageUrl,
+      lastChapter: row.lastChapter,
+      lastUpdated: row.lastUpdated,
+      source: row.source,
+      data: JSON.parse(row.data),
+  })
+  ) ?? [];
 }
 
-// Add chapter
-export function addChapter(chapter: Chapter) {
-  db.execute('INSERT OR REPLACE INTO chapters (manga, title, number, url, publishedAt, pages) VALUES (?, ?, ?, ?, ?, ?)', [
-  chapter.manga,
-  chapter.title,
-  chapter.number,
-  chapter.url,
-  chapter.publishedAt,
-  JSON.stringify(chapter.pages ?? []),
-  ]);
+// Add chapters
+export function addChapters(chapters: Chapter[]) {
+  if(!chapters.length) return;
+  
+  db.transaction((tx) => {
+    for (const chapter of chapters){
+      tx.execute(
+      'INSERT INTO chapters (manga, title, number, url,publishedAt,pages) VALUES (?,?,?,?,?,?)',
+      [
+      chapter.manga,
+      chapter.title,
+      chapter.url,
+      chapter.publishedAt,
+      JSON.stringify(chapter.pages),
+      ]
+      );
+    }
+  });
 }
 
 // Get chapters for manga
-export function getChapters(manga: string): Promise<any> {
-  return new Promise((resolve,reject) => {
-    try{
-      const result = db.execute('SELECT * FROM chapters WHERE manga = ? ORDER BY number DESC', [manga]);
-      resolve(result.rows?._array ?? []);
-    } catch(e){
-      reject(e)
-    }
-  });
+export function getChapters(manga: string): Chapter[] {
+  const result = db.execute("SELECT * FROM chapters WHERE manga = ?", [manga]);
+  return result.rows?._array.map((row:any) => 
+    new Chapter({
+    manga: row.manga,
+    title: row.title,
+    number: row.number,
+    url: row.url,
+    publishedAt: row.publishedAt,
+    pages: JSON.parse(row.pages)
+    })
+  ) ?? [];
 }
 
 // delete a manga and cascade delete chapters

@@ -58,6 +58,7 @@ export default function MangaDetails() {
 
   const [manga, setManga] = useState<Manga>(
     new Manga({
+      id: "",
       name: "Unknown",
       url: (mangaUrl as string) || "",
       imageUrl: "",
@@ -173,35 +174,27 @@ export default function MangaDetails() {
           </View>
         </ThemedView>
 
-        {manga.data.tags && manga.data.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            <FlatList
-              data={manga.data.tags}
-              horizontal
-              keyExtractor={(_, i) => `tag-${i}`}
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled" 
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    router.navigate({
-                      pathname: "/(manga)/sourceScreen",
-                      params: { initialTag: item, sourceName },
-                    });
-                  }}
-                >
-                  <ThemedView variant="surface" style={styles.tagPill}>
-                    <ThemedText variant="subtitle">{item}</ThemedText>
-                  </ThemedView>
-                </TouchableOpacity>
-              )}
-              contentContainerStyle={styles.tagsContent}
-            />
-          </View>
-        )}
 
-        {/* Details Section */}
-        <ThemedView variant="surface" style={styles.body}>
+        {/* rating and add to library button */}
+        <ThemedView variant="surface" style={styles.libContainer}>
+          <ThemedView variant="default">
+            <TouchableOpacity 
+              style={styles.addToLib}
+            >
+              <Ionicons name="add-sharp" color={colors.accent} size={sizes.heading}/>
+            </TouchableOpacity>
+          </ThemedView>
+          <ThemedView variant="default" style={{
+            borderColor: colors.border,
+            borderWidth: 2,
+          }}>
+            <ThemedText variant="title">rating</ThemedText>
+          </ThemedView>
+        </ThemedView>
+
+
+      {/* Details Section */}
+      <ThemedView variant="surface" style={styles.body}>
           {manga.data.Demographic && (
             <ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>
           )}
@@ -246,6 +239,36 @@ export default function MangaDetails() {
             />
           </TouchableOpacity>
         </View>
+
+
+        {manga.data.tags && manga.data.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            <FlatList
+              data={manga.data.tags}
+              horizontal
+              keyExtractor={(_, i) => `tag-${i}`}
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled" 
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    router.navigate({
+                      pathname: "/(manga)/sourceScreen",
+                      params: { initialTag: item, sourceName },
+                    });
+                  }}
+                >
+
+
+                  <ThemedView variant="surface" style={styles.tagPill}>
+                    <ThemedText variant="subtitle">{item}</ThemedText>
+                  </ThemedView>
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={styles.tagsContent}
+            />
+          </View>
+        )}
 
         <ThemedView variant="background" style={styles.chaptersHeader}>
           <ThemedText variant="title" style={{ fontSize: sizes.text }}>
@@ -333,6 +356,17 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     gap: 10,
     minWidth: 0,
+  },
+  libContainer: {
+    padding: 12,
+    justifyContent: "space-evenly",
+    alignItems: "center",
+    gap: 12,
+  },
+  addToLib: {
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "center"
   },
   tagsContainer: {
     minHeight: 40,
