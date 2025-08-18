@@ -1,5 +1,7 @@
 import { SettingsProvider, useNightReading } from "@/contexts/settingProvider";
+import {useMangaStore} from "@/store/mangaStore";
 import { Stack } from "expo-router";
+import {useEffect} from "react";
 import { StyleSheet, View } from "react-native";
 import { Host } from "react-native-portalize";
 
@@ -12,6 +14,13 @@ function BlueLightOverlay () {
 }
 
 export default function RootLayout() {
+  const { loadMangas } = useMangaStore()
+  useEffect(()=>{
+    const load = async()=>{
+      await loadMangas();
+    }
+    load();
+  },[])
   return (
     <SettingsProvider>
       <Host>
