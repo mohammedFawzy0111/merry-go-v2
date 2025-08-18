@@ -61,7 +61,7 @@ const getChapters = async (mangaId: string): Promise<Chapter[]> => {
 
 // function to get rating
 const getRating = async (mangaId: string): Promise<number> => {
-    const { data } = await axios.get(`${API}/statistics/${mangaId}`, {
+    const { data } = await axios.get(`${API}/statistics/manga/${mangaId}`, {
         headers: MANGA_DEX_HEADERS,
     });
 
