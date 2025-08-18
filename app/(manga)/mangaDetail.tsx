@@ -202,24 +202,36 @@ export default function MangaDetails() {
 
 
         {/* rating and add to library button */}
-        <ThemedView variant="surface" style={styles.libContainer}>
-          <ThemedView variant="default">
-            <TouchableOpacity 
-              style={styles.addToLib}
-              onPress = {toggleBookmark}
-            >
-              {isBookmarked? (<Ionicons name="bookmark" size={sizes.heading} color={colors.accent} />) :(<Ionicons name="add-sharp" color={colors.textSecondary} size={sizes.heading}/>)}
-            </TouchableOpacity>
-          </ThemedView>
-          <ThemedView variant="default" style={{
-            borderColor: colors.border,
-            borderWidth: 2,
-            flex: 1
-          }}>
-            <ThemedText variant="title">{`${manga.data.rating ? Math.round(manga.data.rating * 10)/10 : 0}/10`} <Ionicons name='star' color={colors.accent}/></ThemedText>
+        <ThemedView variant="surface" style={[styles.libContainer, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity 
+            style={[
+              styles.addToLib, 
+              { 
+                backgroundColor: isBookmarked ? colors.accent : 'transparent',
+                borderColor: colors.border,
+                borderWidth: 2,
+                borderRadius: 8
+              }
+            ]}
+            onPress={toggleBookmark}
+          >
+            <Ionicons 
+              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+              size={sizes.heading} 
+              color={isBookmarked ? colors.surface : colors.textSecondary} 
+            />
+          </TouchableOpacity>
+          
+          <ThemedView variant="default" style={[styles.ratingContainer, {borderColor:  colors.border}]}>
+            <ThemedText variant="title" style={{ color: colors.accent }}>
+              {`${manga.data.rating ? Math.round(manga.data.rating * 10)/10 : 0}`}
+            </ThemedText>
+            <Ionicons name='star' color={colors.accent} size={sizes.heading}/>
+            <ThemedText variant="subtitle" style={{ color: colors.textSecondary }}>
+              /10
+            </ThemedText>
           </ThemedView>
         </ThemedView>
-
 
       {/* Details Section */}
       <ThemedView variant="surface" style={styles.body}>
@@ -314,7 +326,7 @@ export default function MangaDetails() {
       </ThemedView>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text]);
+  }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text, isBookmarked]);
 
   const renderItem = useCallback(
     ({ item }: { item: Chapter }) => {
@@ -387,19 +399,30 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   libContainer: {
-    flex: 1,
-    padding: 12,
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-    alignItems: "center",
-    gap: 12,
-  },
-  addToLib: {
-    flex: 1,
-    padding: 8,
-    justifyContent: "center",
-    alignItems: "center"
-  },
+  flex: 1,
+  padding: 12,
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  borderRadius: 8,
+  marginHorizontal: 16,
+  marginBottom: 16,
+},
+addToLib: {
+  width: 48,
+  height: 48,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+ratingContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 8,
+  borderWidth: 2,
+},
   tagsContainer: {
     minHeight: 40,
     width: "100%",
