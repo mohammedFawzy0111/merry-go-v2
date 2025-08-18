@@ -85,7 +85,10 @@ export default function MangaDetails() {
       try {
         if (!source) return;
         const data = await source.fetchMangaDetails(mangaUrl as string);
-        if (!cancelled) setManga(data);
+        if (!cancelled) {
+          setManga(data)
+          setIsBookmarked(mangas.some((item) => item.url === manga.url));
+        };
       } catch (error) {
         ToastAndroid.show(
           `failded to load manga: ${error}`,
@@ -98,7 +101,6 @@ export default function MangaDetails() {
     };
 
     loadMangaData();
-    if(mangas.some((item) => item.url === manga.url))
     return () => {
       cancelled = true;
     };
@@ -117,15 +119,22 @@ export default function MangaDetails() {
 
   const toggleReverse = useCallback(() => setIsReversed((v) => !v), []);
   const toggleBookmark = async() => {
+  try {
     if(isBookmarked){
       await removeManga(manga.url);
       setIsBookmarked(false);
+      ToastAndroid.show('Removed from library', ToastAndroid.SHORT);
     } else {
       await addManga(manga);
       await addChapters(manga.chapters);
       setIsBookmarked(true);
+      ToastAndroid.show('Added to library', ToastAndroid.SHORT);
     }
+  } catch (error) {
+    ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
+    console.error('Bookmark toggle error:', error);
   }
+}
 
   const displayedChapters = useMemo(() => {
     if (!isReversed) return manga.chapters;
