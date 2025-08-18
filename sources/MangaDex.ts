@@ -59,6 +59,16 @@ const getChapters = async (mangaId: string): Promise<Chapter[]> => {
     return chapters;
 }
 
+// function to get rating
+const getRating = async (mangaId: string): Promise<number> => {
+    const { data } = await axios.get(`${API}/statistics/${mangaId}`, {
+        headers: MANGA_DEX_HEADERS,
+    });
+
+    const id = Object.keys(data.statistics)[0];
+    return Number(data.statistics[id].rating.average) ?? 0;
+}
+
 // function to get best title
 const getBestTitle = (attributes: any): string => {
     // Try main titles first (en, ar, ja)
@@ -216,6 +226,7 @@ mangaDex.fetchMangaDetails = async (mangaUrl: string): Promise<Manga> => {
             tags: mangaData.attributes.tags.map((tag: any) => tag.attributes.name["en"]) || [],
             author: mangaData.relationships.find((rel: any) => rel.type === "author")?.attributes?.name || "Unknown Author",
             artist: mangaData.relationships.find((rel: any) => rel.type === "artist")?.attributes?.name || "Unknown Artist",
+            rating: await getRating(mangaData.id),
         }
 
         const chapters: Chapter[] = await getChapters(mangaData.id);

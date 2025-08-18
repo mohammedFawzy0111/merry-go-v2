@@ -188,7 +188,7 @@ export default function MangaDetails() {
             borderColor: colors.border,
             borderWidth: 2,
           }}>
-            <ThemedText variant="title">rating</ThemedText>
+            <ThemedText variant="title">{`${manga.data.rating ? Math.round(manga.data.rating) : 0}/10`} <Ionicons name='star' color={colors.accent}/></ThemedText>
           </ThemedView>
         </ThemedView>
 
@@ -285,6 +285,7 @@ export default function MangaDetails() {
         </ThemedView>
       </ThemedView>
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text]);
 
   const renderItem = useCallback(

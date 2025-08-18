@@ -8,6 +8,7 @@ interface MangaDetails {
     tags?: string[];
     author?: string;
     artist?: string;
+    rating?: number;
 }
 
 class Manga {
@@ -48,7 +49,8 @@ class Manga {
             year: "Unknown",
             tags: [],
             author: "Unknown Author",
-            artist: "Unknown Artist"
+            artist: "Unknown Artist",
+            rating: 0
         };
         this.chapters = params.chapters ?? [];
     }
@@ -106,7 +108,7 @@ class Source {
         this.icon = params.icon;
         this.fetchRecentManga = params.fetchRecentManga || (() => Promise.resolve([]));
         this.fetchPopularManga = params.fetchPopularManga || (() => Promise.resolve([]));
-        this.fetchMangaDetails = params.fetchMangaDetails || (() => Promise.resolve(new Manga({ name: '', url: '', imageUrl: '', lastChapter: '', lastUpdated: '', source: this })));
+        this.fetchMangaDetails = params.fetchMangaDetails || (() => Promise.resolve(new Manga({ id: '',name: '', url: '', imageUrl: '', lastChapter: '', lastUpdated: '', source: this })));
         this.fetchChapterDetails = params.fetchChapterDetails || (() => Promise.resolve(new Chapter({manga:'', number: 0, url:'', pages:[]})));
         this.fetchSearchResults = params.fetchSearchResults || (() => Promise.resolve([]));
     }
