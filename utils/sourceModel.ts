@@ -21,6 +21,7 @@ class Manga {
     source: Source;
     data: MangaDetails;
     chapters: Chapter[];
+    category: string;
 
     constructor(params: {
         id: string;
@@ -32,6 +33,7 @@ class Manga {
         source: Source;
         data?: MangaDetails;
         chapters?: Chapter[];
+        category?: string;
     }) {
         this.id = params.id;
         this.name = params.name;
@@ -53,6 +55,7 @@ class Manga {
             rating: 0
         };
         this.chapters = params.chapters ?? [];
+        this.category = params.category ?? '';
     }
 }
 

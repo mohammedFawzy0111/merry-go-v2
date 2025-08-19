@@ -326,7 +326,7 @@ export default function MangaDetails() {
       </ThemedView>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manga, detailsCollapsed, sizes.heading, sizes.text, toggleReverse, colors.text, isBookmarked]);
+  }, [manga, detailsCollapsed, toggleReverse, isBookmarked]);
 
   const renderItem = useCallback(
     ({ item }: { item: Chapter }) => {

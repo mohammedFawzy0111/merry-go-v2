@@ -6,9 +6,9 @@ import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useMemo, useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, TextInput, ToastAndroid, Dimensions } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Dimensions, FlatList, StyleSheet, TextInput, ToastAndroid } from "react-native";
 
 type SortOption = "popular" | "latest";
 
@@ -200,7 +200,6 @@ useEffect(() => {
       ) : (
         <FlatList
           data={mangas}
-          key={numColumns}
           renderItem={({ item }) => (
             <ThemedCard
               imageSource={
