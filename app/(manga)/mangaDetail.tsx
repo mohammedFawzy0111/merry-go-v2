@@ -56,7 +56,7 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const { mangas, addManga, addChapters, removeManga, getMangaByUrl } = useMangaStore()
+  const { mangas, addManga, addChapters, removeManga, getMangaByUrl, loadChapters, chapters } = useMangaStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -91,6 +91,8 @@ export default function MangaDetails() {
         if(existingManga){
           if (!cancelled) {
             setManga(existingManga);
+            await loadChapters(manga.url);
+            manga.chapters = chapters[manga.url]
             setLoading(false);
           }
           return;
@@ -117,6 +119,7 @@ export default function MangaDetails() {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, mangaUrl, mangas]);
 
   useEffect(() => {

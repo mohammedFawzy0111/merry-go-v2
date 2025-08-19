@@ -20,5 +20,6 @@
 . add liberary system [done]
 . add the add to library functionality to mangaDeatis [done]
 . add stars rating to manga details [done]
-. add user defined categories[]
+. add user defined categories[done]
+. add refreshing in the mangaDeatis[done]
 . add setting to filter chapters languages []
