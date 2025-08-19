@@ -27,7 +27,7 @@ interface ModalProps  {
     };
 }
 
-export const ThemedModa = ({
+export const ThemedModal = ({
 visible,
 type,
 title,

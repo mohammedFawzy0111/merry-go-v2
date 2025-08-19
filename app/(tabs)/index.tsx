@@ -1,14 +1,21 @@
+// index.tsx
 import { ThemedCard } from "@/components/ThemedCard";
+import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { useTheme } from "@/contexts/settingProvider";
+import { useCategoryStore } from '@/store/categoryStore';
 import { useMangaStore } from '@/store/mangaStore';
-import { useRouter } from "expo-router";
-import { useEffect, useMemo } from "react";
-import { Dimensions, FlatList, StyleSheet } from "react-native";
+import { MaterialIcons } from '@expo/vector-icons';
+import { useEffect, useMemo, useState } from "react";
+import { Dimensions, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 
 export default function Home() {
-  const router = useRouter()
   const { mangas, loadMangas } = useMangaStore();
+  const { categories, activeCategory, addCategory, setActiveCategory } = useCategoryStore();
+  const { colors } = useTheme();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
   const screenWidth = Dimensions.get('window').width;
   const CARD_WIDTH = 160;
@@ -28,21 +35,96 @@ export default function Home() {
     loadMangas();
   }, []);
 
+  const filteredMangas = useMemo(() => {
+    if (activeCategory === 'default') return mangas;
+    return mangas.filter(manga => manga.category === activeCategory);
+  }, [mangas, activeCategory]);
+
+  const handleAddCategory = (name: string | undefined) => {
+    if (name && name.trim()) {
+      addCategory(name);
+      setNewCategoryName('');
+      setShowAddModal(false);
+    }
+  };
+
   const EmptyState = () => (
     <ThemedView style={styles.emptyContainer}>
       <ThemedText variant="title" style={styles.emptyText}>
-        Your library is empty
+        {activeCategory === 'default' ? 'Your library is empty' : `No manga in ${activeCategory}`}
       </ThemedText>
       <ThemedText variant="subtitle" style={styles.emptySubtext}>
-        Add some manga to get started
+        {activeCategory === 'default' 
+          ? 'Add some manga to get started' 
+          : 'Add manga to this category'}
       </ThemedText>
     </ThemedView>
   );
 
   return (
     <ThemedView variant="background" style={styles.container}>
+      {/* Categories Header */}
+      <ThemedView style={styles.sectionContainer}>
+        <FlatList
+          horizontal
+          data={categories}
+          renderItem={({ item }) => (
+            <ThemedView 
+              style={[
+                styles.categoryButton,
+                activeCategory === item.id && styles.activeCategoryButton
+              ]}
+              variant={activeCategory === item.id ? 'surface' : 'default'}
+              bordered={activeCategory === item.id}
+            >
+              <TouchableOpacity 
+                onPress={() => setActiveCategory(item.id)}
+                activeOpacity={0.7}
+              >
+                <ThemedText 
+                  variant={activeCategory === item.id ? 'accent' : 'secondary'}
+                  style={styles.categoryText}
+                >
+                  {item.name}
+                </ThemedText>
+              </TouchableOpacity>
+            </ThemedView>
+          )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.sectionList}
+          showsHorizontalScrollIndicator={false}
+        />
+        
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => setShowAddModal(true)}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons 
+            name="add" 
+            size={24} 
+            color={colors.textSecondary} 
+          />
+        </TouchableOpacity>
+      </ThemedView>
+
+      {/* Add Category Modal */}
+      <ThemedModal
+        visible={showAddModal}
+        type="prompt"
+        title="Add New Category"
+        placeholder="Enter category name"
+        confirmText="Add"
+        onConfirm={handleAddCategory}
+        onCancel={() => {
+          setNewCategoryName('');
+          setShowAddModal(false);
+        }}
+      />
+
+      {/* Manga List */}
       <FlatList
-        data={mangas}
+        data={filteredMangas}
         renderItem={({ item }) => (
           <ThemedCard 
             imageSource={
@@ -53,7 +135,6 @@ export default function Home() {
             title={item.name}
             imageStyle={styles.cardImage}
             cardStyle={styles.cardContainer}
-            
           />
         )}
         keyExtractor={(item) => item.id}
@@ -76,6 +157,31 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  sectionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  sectionList: {
+    gap: 8,
+  },
+  categoryButton: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  activeCategoryButton: {
+    borderWidth: 1,
+  },
+  categoryText: {
+    fontWeight: '500',
+  },
+  addButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   listContent: {
     paddingTop: 16,

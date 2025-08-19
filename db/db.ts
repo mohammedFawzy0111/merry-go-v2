@@ -14,7 +14,7 @@ export function initDb() {
       lastChapter TEXT,
       lastUpdated TEXT,
       source TEXT,
-      category TEXT DEFAULT 'uncategorized',
+      category TEXT DEFAULT 'default',
       data TEXT
     );
   `);
@@ -35,7 +35,7 @@ export function initDb() {
 }
 
 // Add manga
-export function addManga(manga: Manga, category: string = 'uncategorized') {
+export function addManga(manga: Manga) {
   db.execute(
     `INSERT OR REPLACE INTO mangas 
       (id, name, url, imageUrl, lastChapter, lastUpdated, source, category, data) 
@@ -48,7 +48,7 @@ export function addManga(manga: Manga, category: string = 'uncategorized') {
       manga.lastChapter || null,
       manga.lastUpdated || null,
       manga.source.name || null,
-      category,
+      manga.category || "default",
       JSON.stringify(manga.data ?? {})
     ]
   );
@@ -67,6 +67,7 @@ export function getMangas(): Manga[] {
       lastUpdated: row.lastUpdated,
       source: row.source,
       data: JSON.parse(row.data),
+      category: row.category,
   })
   ) ?? [];
 }
