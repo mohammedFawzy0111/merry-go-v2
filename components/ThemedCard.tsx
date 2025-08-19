@@ -11,6 +11,7 @@ interface ThemedCardProps {
     cardStyle?: RNView['props']['style'];
     titleVariant?: 'default' | 'secondary' | 'accent' | 'title' | 'subtitle';
     onPress?: () => void; // Optional onPress handler
+    onLongPress?: () => void;
 }
 
 export const ThemedCard: React.FC<ThemedCardProps> = ({
@@ -20,11 +21,13 @@ export const ThemedCard: React.FC<ThemedCardProps> = ({
     cardStyle,
     titleVariant = 'title',
     onPress = () => {}, // Default to a no-op function
+    onLongPress = () => {},
 }) => {
 
     return (
         <TouchableOpacity 
-        onPress={onPress} 
+        onPress={onPress}
+        onLongPress={onLongPress} 
         activeOpacity={0.7}
         style={[styles.card, cardStyle]}>
             <ThemedView variant="surface" style={{flex: 1}}>

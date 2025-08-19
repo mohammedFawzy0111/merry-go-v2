@@ -1,7 +1,5 @@
 import { SettingsProvider, useNightReading } from "@/contexts/settingProvider";
-import { initDb } from "@/db/db";
 import { Stack } from "expo-router";
-import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Host } from "react-native-portalize";
 
@@ -14,11 +12,6 @@ function BlueLightOverlay () {
 }
 
 export default function RootLayout() {
-  useEffect(()=>{
-    (async () => {
-      await initDb();
-    })();
-  }, []);
   return (
     <SettingsProvider>
       <Host>

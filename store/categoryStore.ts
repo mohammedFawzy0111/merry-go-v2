@@ -12,6 +12,7 @@ interface CategoryState {
     activeCategory: string;
     addCategory: (name: string) => void;
     setActiveCategory: (id: string) => void;
+    deleteCategory: (id: string) => void;
 }
 
 export const useCategoryStore = create<CategoryState>()(
@@ -24,6 +25,7 @@ export const useCategoryStore = create<CategoryState>()(
                 categories: [...state.categories, { id: name.toLowerCase().replace(/\s+/g, '_'), name }]
             })),
             setActiveCategory: (id) => set({ activeCategory: id }),
+            deleteCategory: (id) => set((state) => ({ categories: [...state.categories.filter(item=> item.id !== id)] })),
         }),
         {
             name: 'category-storage',

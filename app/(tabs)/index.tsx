@@ -1,9 +1,9 @@
-// index.tsx
 import { ThemedCard } from "@/components/ThemedCard";
 import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/settingProvider";
+import { initDb } from "@/db/db";
 import { useCategoryStore } from '@/store/categoryStore';
 import { useMangaStore } from '@/store/mangaStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -11,10 +11,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Dimensions, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 
 export default function Home() {
-  const { mangas, loadMangas } = useMangaStore();
-  const { categories, activeCategory, addCategory, setActiveCategory } = useCategoryStore();
+  const { mangas, loadMangas, removeManga } = useMangaStore();
+  const { categories, activeCategory, addCategory, setActiveCategory, deleteCategory } = useCategoryStore();
   const { colors } = useTheme();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoyDel, setCategoryDel] = useState(true);
+  const [idToDelete, setIdToDelete] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const screenWidth = Dimensions.get('window').width;
@@ -33,6 +36,7 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
+      await initDb();
       await loadMangas();
     })();
   }, []);
@@ -48,6 +52,15 @@ export default function Home() {
       setShowAddModal(false);
     }
   };
+
+  const handleDelete = (id:string) => {
+    if(categoyDel){
+      deleteCategory(id);
+    } else {
+      removeManga(id);
+    }
+    setShowDeleteModal(false);
+  }
 
   const EmptyState = () => (
     <ThemedView style={styles.emptyContainer}>
@@ -81,6 +94,11 @@ export default function Home() {
               <TouchableOpacity 
                 onPress={() => setActiveCategory(item.id)}
                 activeOpacity={0.7}
+                onLongPress={()=>{
+                  setCategoryDel(true);
+                  setIdToDelete(item.id);
+                  setShowDeleteModal(true);
+                }}
               >
                 <ThemedText 
                   variant={activeCategory === item.id ? 'accent' : 'secondary'}
@@ -123,6 +141,18 @@ export default function Home() {
           setShowAddModal(false);
         }}
       />
+      {/* delete category Modal */}
+      <ThemedModal 
+        visible={showDeleteModal}
+        type="confirm"
+        title="Delete Category"
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={()=> handleDelete(idToDelete)}
+        onCancel={()=> {
+          setShowDeleteModal(false);
+        }}
+      />
 
       {/* Manga List */}
       <FlatList
@@ -137,6 +167,11 @@ export default function Home() {
             title={item.name}
             imageStyle={styles.cardImage}
             cardStyle={styles.cardContainer}
+            onLongPress={()=> {
+              setCategoryDel(false)
+              setIdToDelete(item.url);
+              setShowDeleteModal(true);
+            }}
           />
         )}
         keyExtractor={(item) => item.id}
