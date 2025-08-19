@@ -185,12 +185,6 @@ const onRefresh = useCallback(async () => {
       const data = await source.fetchMangaDetails(mangaUrl as string);
       setManga(data);
       
-      // Update cache if this manga is in our library
-      if (isBookmarked) {
-        await addManga(data);
-        await addChapters(data.chapters);
-      }
-      
       // Refresh the image cache
       if (data.imageUrl) {
         const uri = await getCachedImage(data.imageUrl);
@@ -205,7 +199,7 @@ const onRefresh = useCallback(async () => {
     } finally {
       setRefreshing(false);
     }
-}, [source, mangaUrl, isBookmarked, addManga, addChapters]);
+}, [source, mangaUrl,]);
 
   const displayedChapters = useMemo(() => {
     if (!isReversed) return manga.chapters;
