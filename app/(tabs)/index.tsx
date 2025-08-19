@@ -7,10 +7,12 @@ import { initDb } from "@/db/db";
 import { useCategoryStore } from '@/store/categoryStore';
 import { useMangaStore } from '@/store/mangaStore';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Dimensions, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 
 export default function Home() {
+  const router = useRouter();
   const { mangas, loadMangas, removeManga } = useMangaStore();
   const { categories, activeCategory, addCategory, setActiveCategory, deleteCategory } = useCategoryStore();
   const { colors } = useTheme();
@@ -167,6 +169,12 @@ export default function Home() {
             title={item.name}
             imageStyle={styles.cardImage}
             cardStyle={styles.cardContainer}
+            onPress={() => {
+              router.navigate({
+                pathname: "/(manga)/mangaDetail",
+                params: {mangaUrl: item.url, sourceName: item.source.name}
+              })
+            }}
             onLongPress={()=> {
               setCategoryDel(false)
               setIdToDelete(item.url);

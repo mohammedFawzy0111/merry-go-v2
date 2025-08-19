@@ -1,3 +1,4 @@
+import { placeHolderSource, sources } from "@/sources";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { open } from "react-native-quick-sqlite";
 
@@ -65,7 +66,7 @@ export function getMangas(): Manga[] {
       imageUrl: row.imageUrl,
       lastChapter: row.lastChapter,
       lastUpdated: row.lastUpdated,
-      source: row.source,
+      source: sources.find(s => s.name === row.source)?.source || placeHolderSource,
       data: JSON.parse(row.data),
       category: row.category,
   })

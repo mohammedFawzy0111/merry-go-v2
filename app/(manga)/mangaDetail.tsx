@@ -4,6 +4,7 @@ import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { placeHolderSource, sources } from "@/sources";
 import { useMangaStore } from "@/store/mangaStore";
 import { formatDateString } from "@/utils/fomatDateString";
+import { getCachedImage } from "@/utils/imageCache";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,6 +13,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  RefreshControl,
   StyleSheet,
   ToastAndroid,
   TouchableOpacity,
@@ -54,7 +56,7 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const { mangas, addManga, addChapters, removeManga } = useMangaStore()
+  const { mangas, addManga, addChapters, removeManga, getMangaByUrl } = useMangaStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -71,8 +73,9 @@ export default function MangaDetails() {
       chapters: [],
     })
   );
-  const [isBookmarked, setIsBookmarked] = useState<boolean>(false)
-
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
+  const [cachedImageUri, setCachedImageUri] = useState<string|null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const [isReversed, setIsReversed] = useState<boolean>(false);
@@ -83,6 +86,17 @@ export default function MangaDetails() {
     const loadMangaData = async () => {
       setLoading(true);
       try {
+        // check for the manga in the store first
+        const existingManga = getMangaByUrl(mangaUrl as string);
+        if(existingManga){
+          if (!cancelled) {
+            setManga(existingManga);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // if not in store fetch from the source
         if (!source) return;
         const data = await source.fetchMangaDetails(mangaUrl as string);
         if (!cancelled) {
@@ -103,11 +117,36 @@ export default function MangaDetails() {
     return () => {
       cancelled = true;
     };
-  }, [source, mangaUrl]);
+  }, [source, mangaUrl, mangas]);
 
   useEffect(() => {
     setIsBookmarked(mangas.some((item) => item.url === manga.url));
   }, [mangas, manga.url]);
+
+  useEffect(()=> {
+    let isMounted = true;
+
+    const cacheImage = async () => {
+      if(!manga.imageUrl) return;
+      try {
+        const uri = await getCachedImage(manga.imageUrl);
+        if(isMounted){
+          setCachedImageUri(uri);
+        }
+      }catch (error){
+        console.error('Error caching image:', error);
+        if (isMounted) {
+          setCachedImageUri(manga.imageUrl);
+        }
+      }
+    };
+
+    cacheImage();
+
+    return () => {
+    isMounted = false;
+  };
+  }, [manga, manga.imageUrl])
 
   const handleGoToChapter = useCallback(
     (url: string) => {
@@ -138,6 +177,36 @@ export default function MangaDetails() {
   }
 }
 
+// refreshing fuction
+const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (!source) return;
+      const data = await source.fetchMangaDetails(mangaUrl as string);
+      setManga(data);
+      
+      // Update cache if this manga is in our library
+      if (isBookmarked) {
+        await addManga(data);
+        await addChapters(data.chapters);
+      }
+      
+      // Refresh the image cache
+      if (data.imageUrl) {
+        const uri = await getCachedImage(data.imageUrl);
+        setCachedImageUri(uri);
+      }
+    } catch (error) {
+      ToastAndroid.show(
+        `Failed to refresh manga: ${error}`,
+        ToastAndroid.LONG
+      );
+      console.error(`Error refreshing ${mangaUrl} manga:`, error);
+    } finally {
+      setRefreshing(false);
+    }
+}, [source, mangaUrl, isBookmarked, addManga, addChapters]);
+
   const displayedChapters = useMemo(() => {
     if (!isReversed) return manga.chapters;
     return [...manga.chapters].reverse();
@@ -150,9 +219,11 @@ export default function MangaDetails() {
           <View style={styles.coverContainer}>
             <Image
               source={
-                manga.imageUrl
-                  ? { uri: manga.imageUrl }
-                  : require("@/assets/images/placeholder.png")
+                cachedImageUri
+                ? { uri: cachedImageUri }
+                : manga.imageUrl
+                ? { uri: manga.imageUrl }
+                : require("@/assets/images/placeholder.png")
               }
               style={styles.cover}
               resizeMode="cover"
@@ -365,6 +436,13 @@ export default function MangaDetails() {
         index,
       })}
       contentContainerStyle={styles.contentContainer}
+      refreshControl={
+      <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      colors = {[colors.accent]}
+      />
+    }
     />
   );
 }

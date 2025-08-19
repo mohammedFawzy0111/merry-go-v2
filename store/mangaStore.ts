@@ -8,6 +8,7 @@ interface MangaStore {
   loadMangas: ()=> Promise<void>;
   addManga: (manga: Manga) => Promise<void>;
   removeManga: (mangaUrl: string) => Promise<void>;
+  getMangaByUrl: (url: string) => Manga | undefined;
   chapters: Record<string, Chapter[]>;
   loadChapters: (mangaUrl: string) => Promise<void>;
   addChapters: (chapters: Chapter[]) => Promise<void>;
@@ -42,6 +43,10 @@ export const useMangaStore = create<MangaStore>(
       set((state) => ({
         mangas: state.mangas.filter(m => m.url !== mangaUrl)
       }));
+    },
+
+    getMangaByUrl: (mangaUrl) => {
+      return get().mangas.find(m => m.url === mangaUrl);
     },
 
     loadChapters: async (mangaUrl) => {
