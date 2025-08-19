@@ -94,11 +94,11 @@ export default function Home() {
               <TouchableOpacity 
                 onPress={() => setActiveCategory(item.id)}
                 activeOpacity={0.7}
-                onLongPress={()=>{
+                onLongPress={item.id !== 'default' ? () => {
                   setCategoryDel(true);
                   setIdToDelete(item.id);
                   setShowDeleteModal(true);
-                }}
+                } : undefined}
               >
                 <ThemedText 
                   variant={activeCategory === item.id ? 'accent' : 'secondary'}

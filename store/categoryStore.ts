@@ -25,7 +25,16 @@ export const useCategoryStore = create<CategoryState>()(
                 categories: [...state.categories, { id: name.toLowerCase().replace(/\s+/g, '_'), name }]
             })),
             setActiveCategory: (id) => set({ activeCategory: id }),
-            deleteCategory: (id) => set((state) => ({ categories: [...state.categories.filter(item=> item.id !== id)] })),
+            deleteCategory: (id) => {
+                // Prevent deletion of the default category
+                if (id === 'default') {
+                    return;
+                }
+                set((state) => ({ 
+                    categories: [...state.categories.filter(item => item.id !== id)],
+                    activeCategory: state.activeCategory === id ? 'default' : state.activeCategory
+                }));
+            },
         }),
         {
             name: 'category-storage',
