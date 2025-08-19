@@ -36,7 +36,6 @@ export default function Home() {
   }, []);
 
   const filteredMangas = useMemo(() => {
-    if (activeCategory === 'default') return mangas;
     return mangas.filter(manga => manga.category === activeCategory);
   }, [mangas, activeCategory]);
 
