@@ -32,7 +32,9 @@ export default function Home() {
   }, [screenWidth, numColumns]);
 
   useEffect(() => {
-    loadMangas();
+    (async () => {
+      await loadMangas();
+    })();
   }, []);
 
   const filteredMangas = useMemo(() => {
@@ -92,6 +94,7 @@ export default function Home() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.sectionList}
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps= "handled"
         />
         
         <TouchableOpacity 

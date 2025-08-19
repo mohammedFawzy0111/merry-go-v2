@@ -15,7 +15,9 @@ function BlueLightOverlay () {
 
 export default function RootLayout() {
   useEffect(()=>{
-    initDb();
+    (async () => {
+      await initDb();
+    })();
   }, []);
   return (
     <SettingsProvider>

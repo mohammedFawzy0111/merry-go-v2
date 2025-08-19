@@ -55,7 +55,7 @@ class Manga {
             rating: 0
         };
         this.chapters = params.chapters ?? [];
-        this.category = params.category ?? '';
+        this.category = params.category ?? 'default';
     }
 }
 
