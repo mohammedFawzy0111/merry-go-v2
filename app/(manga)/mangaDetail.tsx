@@ -56,7 +56,7 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const { mangas, addManga, addChapters, removeManga, getMangaByUrl, loadChapters, chapters } = useMangaStore()
+  const { mangas, addManga, addChapters, removeManga, getMangaByUrl, } = useMangaStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -87,12 +87,10 @@ export default function MangaDetails() {
       setLoading(true);
       try {
         // check for the manga in the store first
-        const existingManga = getMangaByUrl(mangaUrl as string);
+        const existingManga = await getMangaByUrl(mangaUrl as string);
         if(existingManga){
           if (!cancelled) {
             setManga(existingManga);
-            await loadChapters(manga.url);
-            manga.chapters = chapters[manga.url]
             setLoading(false);
           }
           return;
