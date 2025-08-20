@@ -80,10 +80,11 @@ export function addChapters(chapters: Chapter[]) {
   db.transaction((tx) => {
     for (const chapter of chapters){
       tx.execute(
-      'INSERT INTO chapters (manga, title, number, url,publishedAt,pages) VALUES (?,?,?,?,?,?)',
+      'INSERT INTO chapters (manga, title, number, url, publishedAt, pages) VALUES (?,?,?,?,?,?)',
       [
       chapter.manga,
       chapter.title,
+      chapter.number,
       chapter.url,
       chapter.publishedAt,
       JSON.stringify(chapter.pages),
