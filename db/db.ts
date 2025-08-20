@@ -75,23 +75,27 @@ export function getMangas(): Manga[] {
 
 // Add chapters
 export function addChapters(chapters: Chapter[]) {
-  if(!chapters.length) return;
-  
-  db.transaction((tx) => {
-    for (const chapter of chapters){
-      tx.execute(
-      'INSERT INTO chapters (manga, title, number, url, publishedAt, pages) VALUES (?,?,?,?,?,?)',
-      [
-      chapter.manga,
-      chapter.title,
-      chapter.number,
-      chapter.url,
-      chapter.publishedAt,
-      JSON.stringify(chapter.pages),
-      ]
-      );
+    if(!chapters || !chapters.length) return;
+    
+      try {
+        db.transaction((tx) => {
+          for (const chapter of chapters){
+            tx.execute(
+              'INSERT OR REPLACE INTO chapters (manga, title, number, url, publishedAt, pages) VALUES (?,?,?,?,?,?)',
+              [
+                chapter.manga,
+                chapter.title,
+                chapter.number,
+                chapter.url,
+                chapter.publishedAt,
+                JSON.stringify(chapter.pages),
+              ]
+            );
+          }
+        });
+      } catch (error) {
+        console.error('Failed to add chapters:', error);
     }
-  });
 }
 
 // Get chapters for manga

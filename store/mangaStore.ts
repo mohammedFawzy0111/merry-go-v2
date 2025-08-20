@@ -33,6 +33,9 @@ export const useMangaStore = create<MangaStore>(
 
     addManga: async (manga) => {
       addManga(manga);
+      if(manga.chapters && manga.chapters.length > 0){
+        addChapters(manga.chapters)
+      }
       set((state) => ({
         mangas: [...state.mangas, manga]
       }));
@@ -46,13 +49,17 @@ export const useMangaStore = create<MangaStore>(
     },
 
     getMangaByUrl: async (mangaUrl) => {
-      if(!get().chapters[mangaUrl]){
+      const manga = get().mangas.find(m => m.url === mangaUrl);
+      if (!manga) return;
+      // Load chapters from database
+      if (!get().chapters[mangaUrl]) {
         await get().loadChapters(mangaUrl);
       }
-      const manga = get().mangas.find(m => m.url === mangaUrl);
-      if(!manga) return;
-      manga.chapters = get().chapters[mangaUrl];
-      return manga;
+      // Return manga with chapters attached
+      return {
+        ...manga,
+        chapters: get().chapters[mangaUrl] || []
+      };
     },
 
     loadChapters: async (mangaUrl) => {
