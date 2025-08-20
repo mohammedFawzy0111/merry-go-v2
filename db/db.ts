@@ -2,6 +2,16 @@ import { placeHolderSource, sources } from "@/sources";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { open } from "react-native-quick-sqlite";
 
+export interface Download {
+  id: string;
+  mangaUrl: string;
+  chapterUrl: string;
+  status: 'pending' | 'downloading' | 'done' | 'error';
+  progress: number;
+  localPath: string;
+  queueIndex: number;
+}
+
 const db = open({ name: "manga.db" });
 
 // Run setup once (create tables if not exists)
@@ -31,6 +41,18 @@ export function initDb() {
       pages TEXT,
       read TEXT DEFAULT '0',
       FOREIGN KEY(manga) REFERENCES mangas(url) ON DELETE CASCADE
+    );
+  `);
+
+  db.execute(`
+    CREATE TABLE IF NOT EXISTS downloads (
+    id TEXT PRIMARY KEY NOT NULL,
+    mangaUrl TEXT,
+    chapterUrl TEXT,
+    status TEXT,
+    progress REAL,
+    localPath TEXT,
+    queueIndex INTEGER
     );
   `);
 }
@@ -114,7 +136,51 @@ export function getChapters(manga: string): Chapter[] {
 }
 
 // delete a manga and cascade delete chapters
-
 export function deleteManga(mangaUrl: string) {
   db.execute('DELETE FROM mangas WHERE url = ?', [mangaUrl])
+}
+
+// add download
+export async function insertDownload(item: Download){
+  db.execute(`
+    INSERT INTO downloads (id, mangaUrl, chapterUrl, status, progress, localPath, queueIndex)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,[
+      item.id,
+      item.mangaUrl,
+      item.chapterUrl,
+      item.status,
+      item.progress,
+      item.localPath,
+      item.queueIndex,
+    ]);
+}
+
+// update Download Status
+export async function updateDownloadStatus(id: string, status: string, progress: number) {
+  db.execute(`
+    UPDATE downloads SET status = ?, progress = ? WHERE id = ?
+    `,[status, progress, id]);
+}
+
+// get pending downloads
+export async function getPendingDownloads(): Promise<Download[]> {
+  const result = db.execute(`
+    SELECT * FROM downloads  WHERE status IN('pending', 'downloading') ORDER BY queueIndex ASC
+    `);
+  return result.rows?._array || [];
+}
+
+// get download by chapter
+export async function getDownloadsByChapter(chapterUrl: string): Promise<Download[]> {
+  const result = db.execute(`
+    SELECT * FROM downloads WHERE chpaterUrl = ? ORDER BY queueIndex ASC
+    `,[chapterUrl]);
+
+    return result.rows?._array || [];
+}
+
+// delete download
+export async function deletDownload(id: string) {
+  db.execute(`DELETE FROM downloads WHERE id = ?`, [id]);
 }

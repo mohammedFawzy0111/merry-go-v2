@@ -22,4 +22,7 @@
 . add stars rating to manga details [done]
 . add user defined categories[done]
 . add refreshing in the mangaDeatis[done]
-. add setting to filter chapters languages []
+. add download queue []
+. save metadat in the db []
+. downloader worker []
+. pristent notification []
