@@ -37,7 +37,8 @@ export const useMangaStore = create<MangaStore>(
         addChapters(manga.chapters)
       }
       set((state) => ({
-        mangas: [...state.mangas, manga]
+        mangas: [...state.mangas, manga],
+        chapters: {...state.chapters, [manga.url]: manga.chapters}
       }));
     },
 

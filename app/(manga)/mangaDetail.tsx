@@ -56,7 +56,7 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const { mangas, addManga, addChapters, removeManga, getMangaByUrl, } = useMangaStore()
+  const { mangas, addManga, removeManga, getMangaByUrl, } = useMangaStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -168,7 +168,6 @@ export default function MangaDetails() {
       ToastAndroid.show('Removed from library', ToastAndroid.SHORT);
     } else {
       await addManga(manga);
-      await addChapters(manga.chapters);
       setIsBookmarked(true);
       ToastAndroid.show('Added to library', ToastAndroid.SHORT);
     }
