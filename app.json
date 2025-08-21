@@ -16,8 +16,9 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions":["POST_NOTIFICATIONS"],
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.merrygov2"
+      "package": "com.MohammedFawzy.merrygov2"
     },
     "web": {
       "bundler": "metro",

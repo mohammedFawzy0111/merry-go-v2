@@ -1,5 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { Download } from '@/db/db';
+import { NotificationService } from '@/services/notificationService';
 import { sources } from '@/sources';
 import { useDownloadStore } from '@/store/downloadStore';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
@@ -21,7 +22,16 @@ export const startDownloadService = async() => {
 }
 
 // Helper: wrap a DownloadTask into a Promise so we can await it
-const downloadPage = (taskId: string, url: string, destination: string, downloadId: string, index: number, totalPages: number) => {
+const downloadPage = (
+  taskId: string,
+  url: string, 
+  destination: string, 
+  downloadId: string, 
+  index: number, 
+  totalPages: number,
+  mangaTitle: string,
+  chapterTitle: string,
+) => {
   const { updateDownloadProgress } = useDownloadStore.getState();
 
   return new Promise<void>((resolve, reject) => {
@@ -35,32 +45,61 @@ const downloadPage = (taskId: string, url: string, destination: string, download
 
     task
       .begin(({ expectedBytes }) => {
-        console.log(`Page ${index + 1}: expecting ${expectedBytes} bytes`);
+        // show initial progress notification
+        NotificationService.showDownloadProgress(
+          downloadId,
+          mangaTitle,
+          chapterTitle,
+          0,
+          totalPages,
+          index + 1
+        );
       })
       .progress(({ bytesDownloaded, bytesTotal }) => {
         const pageProgress = bytesDownloaded / bytesTotal;
         const overallProgress =
           (completedPages + pageProgress) / totalPages;
+          const progressPercent = overallProgress * 100;
 
-        updateDownloadProgress(downloadId, overallProgress * 100, 'downloading');
+        updateDownloadProgress(downloadId, progressPercent, 'downloading');
+
+        // update notification with progress
+        NotificationService.showDownloadProgress(
+          downloadId,
+          mangaTitle,
+          chapterTitle,
+          progressPercent,
+          totalPages,
+          index + 1
+        );
       })
       .done(() => {
         completedPages++;
-        console.log(`Downloaded page ${index + 1}/${totalPages}`);
-
         const progress = (completedPages / totalPages) * 100;
         updateDownloadProgress(downloadId, progress, 'downloading');
 
         if (completedPages === totalPages) {
           updateDownloadProgress(downloadId, 100, 'done');
+          //show completion notification
+          NotificationService.showDownloadComplete(
+            downloadId,
+            mangaTitle,
+            chapterTitle
+          );
         }
 
         RNBackgroundDownloader.completeHandler(taskId);
         resolve();
       })
       .error(({ error, errorCode }) => {
-        console.error(`Page ${index + 1} failed:`, error, errorCode);
         updateDownloadProgress(downloadId, 0, 'error');
+        // show error notification
+        NotificationService.showDownloadError(
+          downloadId,
+          mangaTitle,
+          chapterTitle,
+          `Error code: ${errorCode}`
+        );
         reject(error);
       });
   });
@@ -91,7 +130,7 @@ const processDownload = async (download: Download) => {
             const taskId = `${download.id}-page-${index}`;
 
             try {
-                await downloadPage(taskId, pageUrl, filePath, download.id, index, totalPages);
+                await downloadPage(taskId, pageUrl, filePath, download.id, index, totalPages, download.mangaTitle, download.chapterTitle);
             } catch (err) {
                 console.error(`Stopping chapter ${download.id} at page ${index + 1}`, err);
                 break;

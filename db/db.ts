@@ -6,6 +6,8 @@ export interface Download {
   id: string;
   mangaUrl: string;
   chapterUrl: string;
+  mangaTitle: string;
+  chapterTitle: string;
   status: 'pending' | 'downloading' | 'done' | 'error';
   progress: number;
   localPath: string;
@@ -49,6 +51,8 @@ export function initDb() {
     id TEXT PRIMARY KEY NOT NULL,
     mangaUrl TEXT,
     chapterUrl TEXT,
+    mangaTitle TEXT,
+    chapterTitle TEXT,
     status TEXT,
     progress REAL,
     localPath TEXT,
@@ -143,12 +147,14 @@ export function deleteManga(mangaUrl: string) {
 // add download
 export async function insertDownload(item: Download){
   db.execute(`
-    INSERT INTO downloads (id, mangaUrl, chapterUrl, status, progress, localPath, queueIndex)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO downloads (id, mangaUrl, chapterUrl, mangaTitel, chapterTitle, status, progress, localPath, queueIndex)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,[
       item.id,
       item.mangaUrl,
       item.chapterUrl,
+      item.mangaTitle,
+      item.chapterTitle,
       item.status,
       item.progress,
       item.localPath,

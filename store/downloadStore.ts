@@ -62,6 +62,8 @@ export const useDownloadStore = create<DownloadStor>((set,get) => ({
                 id,
                 mangaUrl,
                 chapterUrl,
+                mangaTitle,
+                chapterTitle,
                 status: 'pending',
                 progress: 0,
                 localPath: '',
