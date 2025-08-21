@@ -78,13 +78,13 @@ const ChapterCard = React.memo(
                     color={colors.error} 
                     onPress={handleDownloadPress}
                   />
-                  <View style={styles.progressRing}>
+                  <View style={[styles.progressRing, { borderColor: colors.accent }]}>
                     <View 
                       style={[
                         styles.progressFill,
                         { 
+                          transform: [{ rotate: `${-90 + (downloadProgress * 3.6)}deg` }],
                           backgroundColor: colors.accent,
-                          height: `${downloadProgress}%`
                         }
                       ]} 
                     />
@@ -701,15 +701,18 @@ ratingContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
+    borderWidth: 2,
     position: 'absolute',
+    justifyContent: 'center',
+    alignContent: 'center',
     overflow: 'hidden',
     transform: [{ rotate: '-90deg' }],
   },
   
   progressFill: {
     width: '100%',
+    height: '100%',
     position: 'absolute',
-    bottom: 0,
     borderRadius: 16,
   },
   
