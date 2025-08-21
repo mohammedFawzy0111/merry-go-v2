@@ -208,7 +208,7 @@ export async function getAllDownloads(): Promise<Download[]> {
 // get download by chapter
 export async function getDownloadsByChapter(chapterUrl: string): Promise<Download[]> {
   const result = db.execute(`
-    SELECT * FROM downloads WHERE chpaterUrl = ? ORDER BY queueIndex ASC
+    SELECT * FROM downloads WHERE chapterUrl = ? ORDER BY queueIndex ASC
     `,[chapterUrl]);
 
     return result.rows?._array || [];

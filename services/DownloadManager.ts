@@ -106,7 +106,6 @@ const downloadPage = (
 };
 
 
-// DownloadManager.ts - Update the processDownload function
 const processDownload = async (download: Download) => {
   const { updateDownloadProgress } = useDownloadStore.getState();
   try {

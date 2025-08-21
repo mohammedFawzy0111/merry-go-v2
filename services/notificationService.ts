@@ -1,4 +1,6 @@
+import { useDownloadStore } from '@/store/downloadStore';
 import notifee from '@notifee/react-native';
+import * as FileSystem from 'expo-file-system';
 
 export class NotificationService {
     static channelId = 'manga_downloads_channel';
@@ -9,7 +11,41 @@ export class NotificationService {
             name: 'Chapter Downloads',
             description: 'chapter download notification',
             vibration: false,
-            sound: 'default',
+        });
+        notifee.onForegroundEvent(async ({type, detail}) => {
+            if (detail.pressAction?.id === 'cancel-download') {
+                const downloadId = detail.notification?.id;
+                if (downloadId) {
+                    // Get the download info before removing it
+                    const { downloads, removeDownload, stopDownloads } = useDownloadStore.getState();
+                    const download = downloads.find(d => d.id === downloadId);
+                    
+                    if (download) {
+                        // Delete the incomplete chapter directory
+                        try {
+                            if (download.localPath) {
+                                await FileSystem.deleteAsync(download.localPath, { idempotent: true });
+                                console.log('Deleted incomplete chapter directory:', download.localPath);
+                            }
+                        } catch (error) {
+                            console.error('Failed to delete incomplete directory:', error);
+                        }
+                        
+                        // Remove the download from the store and database
+                        await removeDownload(downloadId);
+                        
+                        // Cancel the notification
+                        await this.cancelNotification(downloadId);
+                        
+                        // Stop any active downloads and restart to process next in queue
+                        await stopDownloads();
+                        
+                        // Restart downloads to process next in queue
+                        const { startDownloads } = useDownloadStore.getState();
+                        await startDownloads();
+                    }
+                }
+            }
         });
     }
 
@@ -32,7 +68,15 @@ export class NotificationService {
                     current: Math.round(progress)
                 },
                 ongoing: true,
-                autoCancel: false
+                autoCancel: false,
+                actions: [
+                    {
+                        title: 'Cancel',
+                        pressAction: {
+                            id: 'cancel-download'
+                        }
+                    }
+                ]
             }
         })
     }
