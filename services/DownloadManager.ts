@@ -106,41 +106,55 @@ const downloadPage = (
 };
 
 
-// process single download
+// DownloadManager.ts - Update the processDownload function
 const processDownload = async (download: Download) => {
-    const { updateDownloadProgress } = useDownloadStore.getState();
-    try {
-        //set status to downloading
-        await updateDownloadProgress(download.id, 0, 'downloading');
-        const source = sources.find(s => download.chapterUrl.includes(s.source.baseUrl));
-        if(!source) throw new Error(`Source not found for URL: ${download.chapterUrl}`);
+  const { updateDownloadProgress } = useDownloadStore.getState();
+  try {
+    await updateDownloadProgress(download.id, 0, 'downloading');
+    const source = sources.find(s => download.chapterUrl.includes(s.source.baseUrl));
+    if (!source) throw new Error(`Source not found for URL: ${download.chapterUrl}`);
 
-        const chapterData = await source.source.fetchChapterDetails(download.chapterUrl);
-        if(!chapterData.pages.length) throw new Error('no pages found for the chapter');
+    const chapterData = await source.source.fetchChapterDetails(download.chapterUrl);
+    if (!chapterData.pages.length) throw new Error('No pages found for the chapter');
 
-        // create the folder for the chapter
-        const chapterDir = `${FileSystem.documentDirectory}downloads/${download.id}/`;
-        await FileSystem.makeDirectoryAsync(chapterDir, {intermediates: true});
+    // Create organized folder structure: downloads/MangaTitle/ChapterTitle/
+    const safeMangaTitle = download.mangaTitle.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeChapterTitle = download.chapterTitle.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    const chapterDir = `${FileSystem.documentDirectory}downloads/${safeMangaTitle}/${safeChapterTitle}/`;
+    await FileSystem.makeDirectoryAsync(chapterDir, { intermediates: true });
 
-        const totalPages = chapterData.pages.length;
+    // Update download with the new local path
+    const updatedDownload = { ...download, localPath: chapterDir };
 
-        for(const [index, pageUrl] of chapterData.pages.entries()){
-            const fileName = `page_${index+1}.jpg`;
-            const filePath = `${chapterDir}${fileName}`
-            const taskId = `${download.id}-page-${index}`;
+    const totalPages = chapterData.pages.length;
 
-            try {
-                await downloadPage(taskId, pageUrl, filePath, download.id, index, totalPages, download.mangaTitle, download.chapterTitle);
-            } catch (err) {
-                console.error(`Stopping chapter ${download.id} at page ${index + 1}`, err);
-                break;
-            }
-        }
-    } catch (error) {
-        console.error('Error processing download:', error);
-        await updateDownloadProgress(download.id, 0, 'error');
+    for (const [index, pageUrl] of chapterData.pages.entries()) {
+      const fileName = `page_${index + 1}.jpg`;
+      const filePath = `${chapterDir}${fileName}`;
+      const taskId = `${download.id}-page-${index}`;
+
+      try {
+        await downloadPage(
+          taskId, 
+          pageUrl, 
+          filePath, 
+          download.id, 
+          index, 
+          totalPages, 
+          download.mangaTitle, 
+          download.chapterTitle
+        );
+      } catch (err) {
+        console.error(`Stopping chapter ${download.id} at page ${index + 1}`, err);
+        break;
+      }
     }
-}
+  } catch (error) {
+    console.error('Error processing download:', error);
+    await updateDownloadProgress(download.id, 0, 'error');
+  }
+};
 
 // stop all active downloads
 export const stopDownloadService = async () => {

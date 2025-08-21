@@ -1,4 +1,4 @@
-import { deletDownload, Download, getDownloadsByChapter, getPendingDownloads, insertDownload, updateDownloadStatus } from '@/db/db';
+import { deletDownload, Download, getAllDownloads, getDownloadsByChapter, insertDownload, updateDownloadStatus } from '@/db/db';
 import { startDownloadService, stopDownloadService } from '@/services/DownloadManager';
 import { create } from 'zustand';
 
@@ -6,6 +6,8 @@ interface DownloadStor {
     downloads: Download[];
     activeDownloads: Download[];
     pendingDownloads: Download[];
+    completedDownloads: Download[];
+    errorDownloads: Download[];
     loading: boolean;
     isDownloading: boolean;
 
@@ -17,12 +19,15 @@ interface DownloadStor {
     removeDownload: (id: string) => Promise<void>;
     getDownloadByChapter: (chapterUrl: string) => Promise<Download | null>;
     clearCompletedDownloads: () => Promise<void>;
+    retryDownload: (id: string) => Promise<void>;
 }
 
 export const useDownloadStore = create<DownloadStor>((set,get) => ({
     downloads: [],
     activeDownloads: [],
     pendingDownloads: [],
+    completedDownloads: [],
+    errorDownloads: [],
     loading: false,
     isDownloading: false,
 
@@ -30,11 +35,13 @@ export const useDownloadStore = create<DownloadStor>((set,get) => ({
     loadDownloads: async() => {
         try {
             set({loading: true});
-            const pending = await getPendingDownloads();
+            const allDownloads = await getAllDownloads();
             set({
-                downloads: pending,
-                pendingDownloads: pending.filter(d => d.status === 'pending'),
-                activeDownloads: pending.filter(d => d.status === 'downloading'),
+                downloads: allDownloads,
+                pendingDownloads: allDownloads.filter(d => d.status === 'pending'),
+                activeDownloads: allDownloads.filter(d => d.status === 'downloading'),
+                completedDownloads: allDownloads.filter(d => d.status === 'done'),
+                errorDownloads: allDownloads.filter(d => d.status === 'error'),
                 loading: false
             });
         } catch (err) {
@@ -131,7 +138,9 @@ export const useDownloadStore = create<DownloadStor>((set,get) => ({
                 return {
                     downloads: filteredDownloads,
                     activeDownloads: filteredDownloads.filter(d => d.status === 'downloading'),
-                    pendingDownloads: filteredDownloads.filter(d => d.status === 'pending')
+                    pendingDownloads: filteredDownloads.filter(d => d.status === 'pending'),
+                    completedDownloads: filteredDownloads.filter(d => d.status === 'done'),
+                    errorDownloads: filteredDownloads.filter(d => d.status === 'error')
                 };
             });
         } catch (err) {
@@ -163,11 +172,48 @@ export const useDownloadStore = create<DownloadStor>((set,get) => ({
                 return {
                     downloads: remainingDownloads,
                     activeDownloads: remainingDownloads.filter(d => d.status === 'downloading'),
-                    pendingDownloads: remainingDownloads.filter(d => d.status === 'pending')
+                    pendingDownloads: remainingDownloads.filter(d => d.status === 'pending'),
+                    completedDownloads: [],
+                    errorDownloads: []
                 };
             })
         } catch (err) {
             console.error('Failed to clear completed downloads:', err);
+        }
+    },
+
+    retryDownload: async(id:string) => {
+        try {
+            const { downloads } = get();
+            const download = downloads.find(d => d.id === id);
+
+            if(!download) return;
+
+            await updateDownloadStatus(id, 'pending', 0);
+            
+            set(state => {
+                const updatedDownloads = state.downloads.map(d => 
+                    d.id === id ? { ...d, status: 'pending' as const, progress: 0 } : d
+                );
+                
+                // Find the updated download to add to pending
+                const retriedDownload = updatedDownloads.find(d => d.id === id);
+                
+                return {
+                    downloads: updatedDownloads,
+                    pendingDownloads: retriedDownload 
+                        ? [...state.pendingDownloads, retriedDownload] 
+                        : state.pendingDownloads,
+                    errorDownloads: state.errorDownloads.filter(d => d.id !== id),
+                    completedDownloads: state.completedDownloads.filter(d => d.id !== id)
+                };
+            });
+            
+            if(!get().isDownloading){
+                get().startDownloads();
+            }
+        } catch (err) {
+            console.error('Failed to retry download:', err);
         }
     }
 }));

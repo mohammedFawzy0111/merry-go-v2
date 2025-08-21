@@ -177,6 +177,34 @@ export async function getPendingDownloads(): Promise<Download[]> {
   return result.rows?._array || [];
 }
 
+export async function getCompletedDownloads(): Promise<Download[]> {
+  const result = db.execute(`
+    SELECT * FROM downloads WHERE status = 'done' ORDER BY queueIndex DESC
+  `);
+  return result.rows?._array || [];
+}
+
+export async function getErrorDownloads(): Promise<Download[]> {
+  const result = db.execute(`
+    SELECT * FROM downloads WHERE status = 'error' ORDER BY queueIndex DESC
+  `);
+  return result.rows?._array || [];
+}
+
+export async function getAllDownloads(): Promise<Download[]> {
+  const result = db.execute(`
+    SELECT * FROM downloads ORDER BY 
+    CASE 
+      WHEN status = 'downloading' THEN 1
+      WHEN status = 'pending' THEN 2
+      WHEN status = 'done' THEN 3
+      WHEN status = 'error' THEN 4
+    END,
+    queueIndex ASC
+  `);
+  return result.rows?._array || [];
+}
+
 // get download by chapter
 export async function getDownloadsByChapter(chapterUrl: string): Promise<Download[]> {
   const result = db.execute(`

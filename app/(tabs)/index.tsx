@@ -6,6 +6,7 @@ import { useTheme } from "@/contexts/settingProvider";
 import { initDb } from "@/db/db";
 import { NotificationService } from "@/services/notificationService";
 import { useCategoryStore } from '@/store/categoryStore';
+import { useDownloadStore } from "@/store/downloadStore";
 import { useMangaStore } from '@/store/mangaStore';
 import { MaterialIcons } from '@expo/vector-icons';
 import notifee from '@notifee/react-native';
@@ -17,6 +18,7 @@ export default function Home() {
   const router = useRouter();
   const { mangas, loadMangas, removeManga } = useMangaStore();
   const { categories, activeCategory, addCategory, setActiveCategory, deleteCategory } = useCategoryStore();
+  const { loadDownloads } = useDownloadStore()
   const { colors } = useTheme();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -44,10 +46,14 @@ export default function Home() {
       await initDb();
       await loadMangas();
     })();
+
     const initializeNotification = async () => {
       await NotificationService.initialize();
       await notifee.requestPermission();
     }
+
+    (async () => { await loadDownloads()})()
+
     initializeNotification();
   }, []);
 
