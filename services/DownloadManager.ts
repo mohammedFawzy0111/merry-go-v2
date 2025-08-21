@@ -1,3 +1,4 @@
+/* eslint-disable import/no-named-as-default-member */
 import { Download } from '@/db/db';
 import { sources } from '@/sources';
 import { useDownloadStore } from '@/store/downloadStore';
@@ -83,7 +84,6 @@ const processDownload = async (download: Download) => {
         await FileSystem.makeDirectoryAsync(chapterDir, {intermediates: true});
 
         const totalPages = chapterData.pages.length;
-        let completedPages = 0;
 
         for(const [index, pageUrl] of chapterData.pages.entries()){
             const fileName = `page_${index+1}.jpg`;

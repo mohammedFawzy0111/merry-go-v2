@@ -4,9 +4,11 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/settingProvider";
 import { initDb } from "@/db/db";
+import { NotificationService } from "@/services/notificationService";
 import { useCategoryStore } from '@/store/categoryStore';
 import { useMangaStore } from '@/store/mangaStore';
 import { MaterialIcons } from '@expo/vector-icons';
+import notifee from '@notifee/react-native';
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Dimensions, FlatList, StyleSheet, TouchableOpacity } from "react-native";
@@ -36,11 +38,17 @@ export default function Home() {
     return Math.max(GAP, remainingSpace / 2);
   }, [screenWidth, numColumns]);
 
+  // initilization useEffect
   useEffect(() => {
     (async () => {
       await initDb();
       await loadMangas();
     })();
+    const initializeNotification = async () => {
+      await NotificationService.initialize();
+      await notifee.requestPermission();
+    }
+    initializeNotification();
   }, []);
 
   const filteredMangas = useMemo(() => {

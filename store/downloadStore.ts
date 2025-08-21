@@ -1,5 +1,5 @@
 import { deletDownload, Download, getDownloadsByChapter, getPendingDownloads, insertDownload, updateDownloadStatus } from '@/db/db';
-import { startDownloadService, stopDownloadService } from '@/utils/DownloadManager';
+import { startDownloadService, stopDownloadService } from '@/services/DownloadManager';
 import { create } from 'zustand';
 
 interface DownloadStor {
