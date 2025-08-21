@@ -2,13 +2,15 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { placeHolderSource, sources } from "@/sources";
+import { useDownloadStore } from "@/store/downloadStore";
 import { useMangaStore } from "@/store/mangaStore";
 import { formatDateString } from "@/utils/fomatDateString";
 import { getCachedImage } from "@/utils/imageCache";
 import { Chapter, Manga } from "@/utils/sourceModel";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   ActivityIndicator,
   FlatList,
@@ -27,27 +29,115 @@ const ChapterCard = React.memo(
     chapter,
     style,
     onPressUrl,
+    mangaUrl,
+    mangaTitle,
   }: {
     chapter: Chapter;
     style?: ViewStyle;
     onPressUrl: (url: string) => void;
+    mangaUrl: string;
+    mangaTitle: string;
   }) => {
+    const { colors } = useTheme();
+    const { sizes } = useFontSize();
+    const {
+      downloads,
+      addToDownloadQueue,
+      removeDownload,
+      updateDownloadProgress
+    } = useDownloadStore();
+
+    const chapterDownload = downloads.find(d => d.chapterUrl === chapter.url);
+    const downloadStatus = chapterDownload?.status;
+    const downloadProgress = chapterDownload?.progress || 0;
+
+    const handleDownloadPress = async () => {
+      if(downloadStatus === 'pending' || downloadStatus === 'downloading'){
+        if(chapterDownload){
+          await removeDownload(chapterDownload.id);
+        }
+      } else {
+        await addToDownloadQueue(mangaUrl, chapter.url, chapter.title, mangaTitle);
+      }
+    };
+
+    const getDownloadIcon = () => {
+      switch(downloadStatus){
+        case 'pending':
+          return(
+            <View style={[styles.downloadProgress, {backgroundColor: colors.surface,borderColor: colors.border}]}>
+              <MaterialIcons name="schedule" size={16} color={colors.textSecondary} />
+            </View>
+          );
+          case 'downloading':
+            return (
+              <View style={styles.downloadProgressContainer}>
+                <View style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <MaterialIcons 
+                    name="close" 
+                    size={16} 
+                    color={colors.error} 
+                    onPress={handleDownloadPress}
+                  />
+                  <View style={styles.progressRing}>
+                    <View 
+                      style={[
+                        styles.progressFill,
+                        { 
+                          backgroundColor: colors.accent,
+                          height: `${downloadProgress}%`
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <ThemedText variant="secondary" style={styles.progressText}>
+                    {Math.round(downloadProgress)}%
+                  </ThemedText>
+                </View>
+              </View>
+            );
+          case 'done':
+            return (
+              <View style={[styles.downloadProgress, { backgroundColor: colors.success, borderColor: colors.border }]}>
+                <MaterialIcons name="check" size={16} color="#fff" />
+              </View>
+            );
+          case 'error':
+            return (
+              <View style={[styles.downloadProgress, { backgroundColor: colors.error, borderColor: colors.border }]}>
+                <MaterialIcons name="error" size={16} color="#fff" />
+              </View>
+            );
+          default:
+            return (
+              <TouchableOpacity 
+                onPress={handleDownloadPress}
+                style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border}]}
+              >
+                <MaterialIcons name="file-download" size={16} color={colors.text} />
+              </TouchableOpacity>
+            );
+      }
+    }
     return (
-      <TouchableOpacity onPress={() => onPressUrl(chapter.url)}>
-        <ThemedView variant="surface" style={[styles.chapterCard, style]}>
-          <ThemedView style={styles.col}>
-            <ThemedText variant="secondary">{chapter.number}</ThemedText>
-          </ThemedView>
-          <ThemedView style={styles.col}>
-            {chapter.title && (
-              <ThemedText variant="default">{chapter.title}</ThemedText>
-            )}
-            <ThemedText variant="subtitle">
-              {formatDateString(chapter.publishedAt)}
-            </ThemedText>
-          </ThemedView>
-        </ThemedView>
-      </TouchableOpacity>
+      <ThemedView variant="surface" style={[styles.chapterCardContainer, style]}>
+        <TouchableOpacity onPress={() => onPressUrl(chapter.url)} style={styles.chapterInfo}>
+            <ThemedView style={styles.col}>
+              <ThemedText variant="secondary">{chapter.number}</ThemedText>
+            </ThemedView>
+            <ThemedView style={styles.col}>
+              {chapter.title && (
+                <ThemedText variant="default">{chapter.title}</ThemedText>
+              )}
+              <ThemedText variant="subtitle">
+                {formatDateString(chapter.publishedAt)}
+              </ThemedText>
+            </ThemedView>
+        </TouchableOpacity>
+        <View style={styles.downloadButton}>
+          {getDownloadIcon()}
+        </View>
+      </ThemedView>
     );
   }
 );
@@ -56,7 +146,8 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const { mangas, addManga, removeManga, getMangaByUrl, } = useMangaStore()
+  const { mangas, addManga, removeManga, getMangaByUrl, } = useMangaStore();
+  const { addToDownloadQueue, downloads } = useDownloadStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -147,7 +238,17 @@ export default function MangaDetails() {
     return () => {
     isMounted = false;
   };
-  }, [manga, manga.imageUrl])
+  }, [manga, manga.imageUrl]);
+
+  useEffect(() => {
+  // Load downloads when component mounts
+  const loadDownloads = async () => {
+    const { loadDownloads } = useDownloadStore.getState();
+    await loadDownloads();
+  };
+  
+  loadDownloads();
+}, []);
 
   const handleGoToChapter = useCallback(
     (url: string) => {
@@ -200,6 +301,21 @@ const onRefresh = useCallback(async () => {
       setRefreshing(false);
     }
 }, [source, mangaUrl,]);
+
+const handleDownloadAll = async () => {
+  try {
+    for (const chapter of manga.chapters) {
+      const existingDownload = downloads.find(d => d.chapterUrl === chapter.url);
+      if (!existingDownload) {
+        await addToDownloadQueue(manga.url, chapter.url, chapter.title, manga.name);
+      }
+    }
+    ToastAndroid.show('Added all chapters to download queue', ToastAndroid.SHORT);
+  } catch (error) {
+    ToastAndroid.show('Failed to add chapters to download', ToastAndroid.LONG);
+    console.error('Download all error:', error);
+  }
+};
 
   const displayedChapters = useMemo(() => {
     if (!isReversed) return manga.chapters;
@@ -379,14 +495,22 @@ const onRefresh = useCallback(async () => {
           <ThemedText variant="title" style={{ fontSize: sizes.text }}>
             {"Chapters"}
           </ThemedText>
-          <TouchableOpacity onPress={toggleReverse}>
-            <Ionicons
-              name="swap-vertical-sharp"
-              size={sizes.heading}
-              style={styles.chevron}
-              color={colors.text}
-            />
-          </TouchableOpacity>
+          <View style={styles.chapterActions}>
+            <TouchableOpacity onPress={toggleReverse} style={[styles.actionButton,{backgroundColor: colors.surface}]}>
+              <Ionicons
+                name="swap-vertical-sharp"
+                size={sizes.heading}
+                color={colors.text}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDownloadAll} style={[styles.actionButton,{backgroundColor: colors.surface}]}>
+              <MaterialIcons
+                name="download"
+                size={sizes.heading}
+                color={colors.text}
+              />
+            </TouchableOpacity>
+          </View>
         </ThemedView>
       </ThemedView>
     );
@@ -399,11 +523,13 @@ const onRefresh = useCallback(async () => {
         <ChapterCard
           chapter={item}
           onPressUrl={handleGoToChapter}
+          mangaUrl={manga.url}
+          mangaTitle={manga.name}
           style={{ borderColor: colors.border }}
         />
       );
     },
-    [handleGoToChapter, colors.border]
+    [handleGoToChapter, colors.border, manga.url, manga.name]
   );
 
   const ITEM_HEIGHT = 64;
@@ -534,18 +660,77 @@ ratingContainer: {
     marginBottom: 12,
     alignItems: "center",
   },
-  chapterCard: {
+  chapterCardContainer: {
     flex: 1,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     borderWidth: 2,
     padding: 12,
     marginBottom: 8,
     minHeight: 48,
   },
+  
+  chapterInfo: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  
+  downloadButton: {
+    marginLeft: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  
+  downloadProgressContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  downloadProgress: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  
+  progressRing: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    position: 'absolute',
+    overflow: 'hidden',
+    transform: [{ rotate: '-90deg' }],
+  },
+  
+  progressFill: {
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+    borderRadius: 16,
+  },
+  
+  progressText: {
+    fontSize: 8,
+    position: 'absolute',
+    fontWeight: 'bold',
+  },
   col: {
     flexDirection: "column",
     justifyContent: "center",
     alignItems: "center",
+  },
+  chapterActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
   },
 });
