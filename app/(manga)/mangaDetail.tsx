@@ -44,7 +44,6 @@ const ChapterCard = React.memo(
       downloads,
       addToDownloadQueue,
       removeDownload,
-      updateDownloadProgress
     } = useDownloadStore();
 
     const chapterDownload = downloads.find(d => d.chapterUrl === chapter.url);
@@ -66,7 +65,7 @@ const ChapterCard = React.memo(
         case 'pending':
           return(
             <View style={[styles.downloadProgress, {backgroundColor: colors.surface,borderColor: colors.border}]}>
-              <MaterialIcons name="schedule" size={16} color={colors.textSecondary} />
+              <MaterialIcons name="schedule" size={16} color={colors.textSecondary} onPress={handleDownloadPress}/>
             </View>
           );
           case 'downloading':

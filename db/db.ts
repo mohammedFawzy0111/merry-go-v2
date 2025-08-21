@@ -147,7 +147,7 @@ export function deleteManga(mangaUrl: string) {
 // add download
 export async function insertDownload(item: Download){
   db.execute(`
-    INSERT INTO downloads (id, mangaUrl, chapterUrl, mangaTitel, chapterTitle, status, progress, localPath, queueIndex)
+    INSERT INTO downloads (id, mangaUrl, chapterUrl, mangaTitle, chapterTitle, status, progress, localPath, queueIndex)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,[
       item.id,
