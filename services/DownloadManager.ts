@@ -105,12 +105,13 @@ const downloadPage = (
 
     task
       .begin(({ expectedBytes }) => {
+        const initialProgress = (completedPages/totalPages) * 100;
         // show initial progress notification
         NotificationService.showDownloadProgress(
           downloadId,
           mangaTitle,
           chapterTitle,
-          0,
+          initialProgress,
           totalPages,
           index + 1
         );
@@ -118,9 +119,8 @@ const downloadPage = (
       .progress(({ bytesDownloaded, bytesTotal }) => {
         const pageProgress = bytesDownloaded / bytesTotal;
         // calcutlate overall progress
-        const overallProgress =
-          (completedPages + pageProgress) / totalPages;
-          const progressPercent = overallProgress * 100;
+        const overallProgress =(completedPages + pageProgress) / totalPages;
+        const progressPercent = overallProgress * 100;
 
         updateDownloadProgress(downloadId, progressPercent, 'downloading');
 
