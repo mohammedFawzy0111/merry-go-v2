@@ -1,7 +1,9 @@
+import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { placeHolderSource, sources } from "@/sources";
+import { useCategoryStore } from "@/store/categoryStore";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useMangaStore } from "@/store/mangaStore";
 import { formatDateString } from "@/utils/fomatDateString";
@@ -39,7 +41,6 @@ const ChapterCard = React.memo(
     mangaTitle: string;
   }) => {
     const { colors } = useTheme();
-    const { sizes } = useFontSize();
     const {
       downloads,
       addToDownloadQueue,
@@ -146,7 +147,8 @@ export default function MangaDetails() {
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const { mangas, addManga, removeManga, getMangaByUrl, } = useMangaStore();
-  const { addToDownloadQueue, downloads } = useDownloadStore()
+  const { addToDownloadQueue, downloads } = useDownloadStore();
+  const { categories, loadCategories } = useCategoryStore()
   const router = useRouter();
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -169,6 +171,15 @@ export default function MangaDetails() {
   const [loading, setLoading] = useState(false);
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const [isReversed, setIsReversed] = useState<boolean>(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('default');
+
+  useEffect(() => {
+    const loadCats = async() => {
+      await loadCategories();
+    }
+    loadCats()
+  },[]);
 
   useEffect(() => {
     let cancelled = false;
@@ -267,14 +278,30 @@ export default function MangaDetails() {
       setIsBookmarked(false);
       ToastAndroid.show('Removed from library', ToastAndroid.SHORT);
     } else {
-      await addManga(manga);
-      setIsBookmarked(true);
-      ToastAndroid.show('Added to library', ToastAndroid.SHORT);
+      setShowCategoryModal(true);
     }
   } catch (error) {
     ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
     console.error('Bookmark toggle error:', error);
   }
+}
+
+const handleAddWithCategory = async (categoryId: string) =>{
+  try {
+    const mangaWithCat = {...manga, category: categoryId};
+    await addManga(mangaWithCat);
+    setIsBookmarked(true);
+    setShowCategoryModal(false);
+    ToastAndroid.show(`Added to ${getCategoryName(categoryId)}`, ToastAndroid.SHORT)
+  } catch (error) {
+    ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
+    console.error('Bookmark toggle error:', error);
+  }
+}
+
+const getCategoryName = (id: string) => {
+  const category = categories.find(cat => cat.id === id);
+  return category? category.name : 'All';
 }
 
 // refreshing fuction
@@ -511,6 +538,54 @@ const handleDownloadAll = async () => {
             </TouchableOpacity>
           </View>
         </ThemedView>
+
+        {showCategoryModal && (
+          <ThemedModal
+            visible={showCategoryModal}
+            type='custom'
+            title="Select Category"
+            onCancel={() => setShowCategoryModal(false)}
+            customContent={
+              <ThemedView style={styles.categoryModalContent}>
+                <FlatList
+                  data={categories}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.categoryOption,
+                        selectedCategory === item.id && {backgroundColor: colors.border + '20'},
+                        {borderBottomColor: colors.border}
+                      ]}
+                      onPress={() => setSelectedCategory(item.id)}
+                    >
+                      <ThemedText variant={selectedCategory === item.id ? 'accent' : 'default'}>
+                        {item.name}
+                      </ThemedText>
+                      {selectedCategory === item.id && (
+                        <Ionicons name="checkmark" size={20} color={colors.accent} />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  keyExtractor={(item) => item.id}
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: colors.surface }]}
+                    onPress={() => setShowCategoryModal(false)}
+                  >
+                    <ThemedText>Cancel</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: colors.accent }]}
+                    onPress={() => handleAddWithCategory(selectedCategory)}
+                  >
+                    <ThemedText variant='default' style={{color: colors.accent}}>Add to Library</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </ThemedView>
+            }
+          />
+        )}
       </ThemedView>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -734,5 +809,29 @@ ratingContainer: {
   actionButton: {
     padding: 8,
     borderRadius: 8,
+  },
+
+  categoryModalContent: {
+    maxHeight: 300,
+  },
+  categoryOption: {
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+    gap: 8,
+  },
+  modalButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
   },
 });

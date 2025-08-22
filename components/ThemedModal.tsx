@@ -7,7 +7,7 @@ type ModalType = "confirm" | "prompt";
 
 interface ModalProps  {
     visible: boolean;
-    type: ModalType;
+    type: ModalType | 'custom';
     title?: string;
     message?: string;
     placeholder?: string; // used for prompt
@@ -15,6 +15,7 @@ interface ModalProps  {
     cancelText?: string;
     onConfirm?: (value?: string) => void;
     onCancel?: () => void;
+    customContent?: React.ReactNode;
     style?: {
         container?: object;
         title?: object;
@@ -37,6 +38,7 @@ confirmText = "OK",
 cancelText = "Cancel",
 onConfirm,
 onCancel,
+customContent,
 style = {},
 }: ModalProps) => {
 
@@ -48,49 +50,58 @@ style = {},
     }, [visible]);
 
     return(
-        <Modal visible={visible} transparent animationType="fade">
-            <View style={styles.overlay}>
-                <View style={[styles.container, {backgroundColor: colors.bg},style.container]}>
-                    {title && <ThemedText variant="title" style={[styles.title, style.title]}>{title}</ThemedText>}
-                    {message && <ThemedText variant="secondary" style={[styles.message, style.message]}>{message}</ThemedText>}
+      <Modal visible={visible} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={[styles.container, {backgroundColor: colors.bg}, style.container]}>
+            {title && <ThemedText variant="title" style={[styles.title, style.title]}>{title}</ThemedText>}
+            
+            {type === "custom" && customContent ? (
+              customContent
+            ) : (
+              <>
+                {message && <ThemedText variant="secondary" style={[styles.message, style.message]}>{message}</ThemedText>}
 
-                    {type === "prompt" && (
-                        <TextInput
-                        style={[styles.input, {borderColor: colors.border, color: colors.text}, style.input]}
-                        placeholder={placeholder}
-                        value={value}
-                        onChangeText={setValue}
-                        />
-                    )}
+                {type === "prompt" && (
+                  <TextInput
+                    style={[styles.input, {borderColor: colors.border, color: colors.text}, style.input]}
+                    placeholder={placeholder}
+                    value={value}
+                    onChangeText={setValue}
+                  />
+                )}
 
-                    <View style={styles.actions}>
-                        <TouchableOpacity
-                        style={[styles.button, {backgroundColor: colors.surface}, style.cancelButton]}
-                        onPress={onCancel}
-                        >
-                        <ThemedText variant="default" style={[{color: colors.text, fontWeight: "bold"}, style.buttonText]}>
-                            {cancelText}
-                        </ThemedText>
-                        </TouchableOpacity>
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    style={[styles.button, {backgroundColor: colors.surface}, style.cancelButton]}
+                    onPress={onCancel}
+                  >
+                    <ThemedText variant="default" style={[{color: colors.text, fontWeight: "bold"}, style.buttonText]}>
+                      {cancelText}
+                    </ThemedText>
+                  </TouchableOpacity>
 
-                        <TouchableOpacity
-                        style={[styles.button, {backgroundColor: colors.accent}, style.confirmButton]}
-                        onPress={() => {
-                            if (type === "prompt") {
-                            onConfirm?.(value);
-                            } else {
-                            onConfirm?.();
-                            }
-                        }}
-                        >
-                        <ThemedText variant="default" style={[{color: colors.text, fontWeight: "bold"}, style.buttonText]}>
-                            {confirmText}
-                        </ThemedText>
-                        </TouchableOpacity>
-                    </View>
+                  {type !== "custom" && (
+                    <TouchableOpacity
+                      style={[styles.button, {backgroundColor: colors.accent}, style.confirmButton]}
+                      onPress={() => {
+                        if (type === "prompt") {
+                          onConfirm?.(value);
+                        } else {
+                          onConfirm?.();
+                        }
+                      }}
+                    >
+                      <ThemedText variant="default" style={[{color: colors.text, fontWeight: "bold"}, style.buttonText]}>
+                        {confirmText}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  )}
                 </View>
-            </View>
-        </Modal>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     );
 
 }
