@@ -4,6 +4,7 @@ import { useSettings } from '@/contexts/settingProvider';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
+  Dimensions,
   DimensionValue,
   FlatList,
   LayoutChangeEvent,
@@ -11,7 +12,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
-  Dimensions,
 } from 'react-native';
 import { Portal } from 'react-native-portalize';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -122,8 +122,12 @@ export function Dropdown<T extends string>({
     flex: 1,
   };
 
-  // Default fallback icon when selected option has no icon
-  const fallbackIcon: IoniconsName = 'apps';
+  // Determine if we should show an icon in the header
+  const shouldShowHeaderIcon = showHeaderIconOnly || selectedOption?.icon || typeof placeholder !== 'string';
+  
+  // Determine which icon to show in the header
+  const headerIconName = selectedOption?.icon || 
+                         (typeof placeholder !== 'string' ? placeholder : 'apps');
 
   // Determine header label text (if selected or placeholder string)
   const headerLabel = selectedOption?.label || (typeof placeholder === 'string' ? placeholder : '');
@@ -176,17 +180,19 @@ export function Dropdown<T extends string>({
           activeOpacity={0.7}
         >
           <View style={styles.headerContent}>
-            {/* show selected icon or fallback */}
-            <Ionicons
-              name={selectedOption?.icon ?? fallbackIcon}
-              size={headerIconSize}
-              color={colors.accent}
-            />
+            {/* Only show icon if in icon-only mode or if an icon is provided */}
+            {shouldShowHeaderIcon && (
+              <Ionicons
+                name={headerIconName}
+                size={headerIconSize}
+                color={colors.accent}
+              />
+            )}
 
             {/* Show text unless user requested icon-only header */}
             {!showHeaderIconOnly && (
               <ThemedText
-                style={[headerTextStyle, { marginLeft: 0 }]}
+                style={[headerTextStyle, { marginLeft: shouldShowHeaderIcon ? 8 : 0 }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -235,6 +241,7 @@ export function Dropdown<T extends string>({
                 width: menuWidth ?? buttonLayout.width,
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
+                zIndex: 9999, // Ensure it renders on top of modals
               },
               animatedMenu
             ]}
