@@ -1,9 +1,11 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { useFontSize, useTheme, useReadingMode } from "@/contexts/settingProvider";
+import { useFontSize, useReadingMode, useTheme } from "@/contexts/settingProvider";
 import { sources } from "@/sources";
+import { useDownloadStore } from "@/store/downloadStore";
 import { Chapter } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
@@ -188,6 +190,7 @@ export default function ChapterReader() {
   const { readingMode } = useReadingMode()
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { loadDownloads,getDownloadByChapter } = useDownloadStore();
 
   const source = sources.find((el) => el.name === sourceName)?.source;
 
@@ -219,27 +222,55 @@ export default function ChapterReader() {
     [toggleControls]
   );
 
-  useEffect(() => {
-    const fetchChapterData = async () => {
-      setLoading(true);
-      try {
-        if (!source) return;
-        const chapter: Chapter = await source.fetchChapterDetails(
-          chapterUrl as string
-        );
-        if(!(chapter.pages.length > 0)){
-          ToastAndroid.show("chapter is empty", ToastAndroid.LONG)
-          router.back()
+  const fetchChapterData = async() => {
+    setLoading(true);
+    try {
+      // check if chapter is downloaded
+      const download = await getDownloadByChapter(chapterUrl as string);
+      if(download && download.status === 'done' && download.localPath){
+        const files = await FileSystem.readDirectoryAsync(download.localPath);
+        const pageFiles = files
+        .filter(file => file.startsWith('page_') && (file.endsWith('.jpg') || file.endsWith('.png')))
+        .sort((a,b) => {
+          const aNum = parseInt(a.split('_')[1].split('.')[0], 10);
+          const bNum = parseInt(b.split('_')[1].split('.')[0], 10);
+          return aNum - bNum;
+        });
+        const localPages = pageFiles.map(file => `${download.localPath}${file}`);
+
+        const localChapter = new Chapter({
+          manga: download.mangaUrl,
+          title: download.chapterTitle,
+          number:0, //TODO: store in the db
+          url: download.chapterUrl,
+          publishedAt: '',
+          pages: localPages
+        });
+        setChapter(localChapter);
+      } else {
+        // fetch from source
+        if(!source) return;
+        const chapter: Chapter = await source.fetchChapterDetails(chapterUrl as string);
+        if(!(chapter.pages.length > 0)) {
+          ToastAndroid.show('chapter is empty', ToastAndroid.SHORT);
+          router.back();
         }
         setChapter(chapter);
-      } catch (error) {
-        console.error("Error fetching chapter:", error);
-      } finally {
-        setLoading(false);
       }
-    };
-    fetchChapterData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch (error) {
+      console.error("Error fetching chapter: ", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadDownloads();
+  }, []);
+
+  useEffect(() => {
+    fetchChapterData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterUrl]);
 
   // Auto-hide controls
