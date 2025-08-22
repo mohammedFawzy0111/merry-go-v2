@@ -17,7 +17,7 @@ import { Dimensions, FlatList, StyleSheet, TouchableOpacity } from "react-native
 export default function Home() {
   const router = useRouter();
   const { mangas, loadMangas, removeManga } = useMangaStore();
-  const { categories, activeCategory, addCategory, setActiveCategory, deleteCategory } = useCategoryStore();
+  const { categories, activeCategory, addCategory, setActiveCategory, deleteCategory,loadCategories } = useCategoryStore();
   const { loadDownloads } = useDownloadStore()
   const { colors } = useTheme();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -45,14 +45,14 @@ export default function Home() {
     (async () => {
       await initDb();
       await loadMangas();
+      await loadCategories();
+      await loadDownloads();
     })();
 
     const initializeNotification = async () => {
       await NotificationService.initialize();
       await notifee.requestPermission();
     }
-
-    (async () => { await loadDownloads()})()
 
     initializeNotification();
   }, []);

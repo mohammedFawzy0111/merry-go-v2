@@ -14,6 +14,11 @@ export interface Download {
   queueIndex: number;
 }
 
+export interface Category{
+  id: string;
+  name: string;
+}
+
 const db = open({ name: "manga.db" });
 
 // Run setup once (create tables if not exists)
@@ -59,6 +64,14 @@ export function initDb() {
     queueIndex INTEGER
     );
   `);
+
+  db.execute(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+  `);
+  db.execute(`INSERT OR IGNORE INTO categories (id, name) VALUES ('default', 'All');`);
 }
 
 // Add manga
@@ -217,4 +230,31 @@ export async function getDownloadsByChapter(chapterUrl: string): Promise<Downloa
 // delete download
 export async function deletDownload(id: string) {
   db.execute(`DELETE FROM downloads WHERE id = ?`, [id]);
+}
+
+// get all categories
+export async function getCategories():Promise<Category[]> {
+  const result = db.execute(`SELECT * FROM categories`);
+  return result.rows?._array || [];
+}
+
+// insert category
+export async function insertCategory(item:Category) {
+  db.execute(`INSERT INTO categories (id, name) VALUES (?,?)`,
+    [
+      item.id,
+      item.name
+    ]
+  );
+}
+// remove category
+export async function deleteCategory(id:string) {
+  db.execute(`DELETE FROM categories WHERE id = ?`, [id]);
+}
+
+// reassign all manga category
+export async function reassignMangaCategory(oldCategoryId:string, newCategoryId:string) {
+  db.transaction((tx) => {
+    tx.execute(`UPADATE mangas SET category = ? WHERE category = ?`,[newCategoryId,oldCategoryId]);
+  })
 }
