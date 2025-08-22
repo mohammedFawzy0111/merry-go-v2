@@ -1,3 +1,4 @@
+import { Dropdown, DropdownOption } from '@/components/Dropdown';
 import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -173,6 +174,14 @@ export default function MangaDetails() {
   const [isReversed, setIsReversed] = useState<boolean>(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('default');
+
+  const categoryOptions: DropdownOption<string>[] = useMemo(() => [
+    {value: 'defualt', label: 'All'},
+    ...categories.map(cat => ({
+      value: cat.id,
+      label: cat.name
+    }))
+  ], [categories]);
 
   useEffect(() => {
     const loadCats = async() => {
@@ -538,54 +547,6 @@ const handleDownloadAll = async () => {
             </TouchableOpacity>
           </View>
         </ThemedView>
-
-        {showCategoryModal && (
-          <ThemedModal
-            visible={showCategoryModal}
-            type='custom'
-            title="Select Category"
-            onCancel={() => setShowCategoryModal(false)}
-            customContent={
-              <ThemedView style={styles.categoryModalContent}>
-                <FlatList
-                  data={categories}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={[
-                        styles.categoryOption,
-                        selectedCategory === item.id && {backgroundColor: colors.border + '20'},
-                        {borderBottomColor: colors.border}
-                      ]}
-                      onPress={() => setSelectedCategory(item.id)}
-                    >
-                      <ThemedText variant={selectedCategory === item.id ? 'accent' : 'default'}>
-                        {item.name}
-                      </ThemedText>
-                      {selectedCategory === item.id && (
-                        <Ionicons name="checkmark" size={20} color={colors.accent} />
-                      )}
-                    </TouchableOpacity>
-                  )}
-                  keyExtractor={(item) => item.id}
-                />
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, { backgroundColor: colors.surface }]}
-                    onPress={() => setShowCategoryModal(false)}
-                  >
-                    <ThemedText>Cancel</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, { backgroundColor: colors.accent }]}
-                    onPress={() => handleAddWithCategory(selectedCategory)}
-                  >
-                    <ThemedText variant='default' style={{color: colors.accent}}>Add to Library</ThemedText>
-                  </TouchableOpacity>
-                </View>
-              </ThemedView>
-            }
-          />
-        )}
       </ThemedView>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -613,31 +574,65 @@ const handleDownloadAll = async () => {
   }
 
   return (
-    <FlatList
-      ListHeaderComponent={renderHeader}
-      data={displayedChapters}
-      renderItem={renderItem}
-      keyExtractor={(item) => item.url}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled" 
-      initialNumToRender={12}
-      maxToRenderPerBatch={12}
-      windowSize={10}
-      removeClippedSubviews
-      getItemLayout={(_, index) => ({
-        length: ITEM_HEIGHT,
-        offset: ITEM_HEIGHT * index,
-        index,
-      })}
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-      <RefreshControl
-      refreshing={refreshing}
-      onRefresh={onRefresh}
-      colors = {[colors.accent]}
+    <>
+      <FlatList
+        ListHeaderComponent={renderHeader}
+        data={displayedChapters}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.url}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled" 
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        windowSize={10}
+        removeClippedSubviews
+        getItemLayout={(_, index) => ({
+          length: ITEM_HEIGHT,
+          offset: ITEM_HEIGHT * index,
+          index,
+        })}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+        <RefreshControl
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        colors = {[colors.accent]}
+        />
+      }
       />
-    }
-    />
+
+      <ThemedModal
+        visible={showCategoryModal}
+        type='custom'
+        title="Select Category"
+        onCancel={() => setShowCategoryModal(false)}
+        customContent={
+          <ThemedView style={styles.categoryModalContent}>
+            <Dropdown
+              options={categoryOptions}
+              selectedValue={selectedCategory}
+              onSelect={setSelectedCategory}
+              placeholder="Select category"
+              width='100 %'
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, {backgroundColor: colors.surface}]}
+                onPress={() => setShowCategoryModal(false)}
+              >
+                <ThemedText>Cancel</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, {backgroundColor: colors.accent}]}
+                onPress={() => handleAddWithCategory(selectedCategory)}
+              >
+                <ThemedText style={{color: colors.text}}>Add to Library</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </ThemedView>
+        }
+      />
+    </>
   );
 }
 
@@ -813,18 +808,12 @@ ratingContainer: {
 
   categoryModalContent: {
     maxHeight: 300,
-  },
-  categoryOption: {
     padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-  },
+    gap: 16,
+},
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 16,
     gap: 8,
   },
   modalButton: {
