@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import {
   DimensionValue,
   FlatList,
+  I18nManager,
   StyleSheet,
   TouchableOpacity,
   View
@@ -177,6 +178,7 @@ export function Dropdown<T extends string>({
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
+                ...(I18nManager.isRTL ? {right:0}: {left:0}),
               },
               animatedMenu,
             ]}
@@ -213,8 +215,6 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     top: '100%',
-    left: 0,
-    right: 0,
     borderWidth: 1,
     borderRadius: 8,
     overflow: 'hidden',
