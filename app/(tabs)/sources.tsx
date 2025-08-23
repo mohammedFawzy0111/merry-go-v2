@@ -5,12 +5,14 @@ import { useTheme } from '@/contexts/settingProvider';
 import { sourceManager } from '@/sources';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, SectionList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 interface SourceSection {
   title: string;
   data: any[];
 }
+
+type SourceTab = 'installed' | 'available';
 
 export default function Sources() {
   const { colors } = useTheme();
@@ -18,6 +20,7 @@ export default function Sources() {
   const [sections, setSections] = useState<SourceSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<SourceTab>('installed');
 
   const loadSources = async () => {
     try {
@@ -103,13 +106,13 @@ export default function Sources() {
     });
   };
 
-  const renderSectionHeader = ({ section }: { section: SourceSection }) => (
-    <ThemedView variant="surface" style={styles.sectionHeader}>
-      <ThemedText variant="subtitle" style={styles.sectionTitle}>
-        {section.title}
-      </ThemedText>
-    </ThemedView>
-  );
+  const getDisplayData = () => {
+    if (activeTab === 'installed') {
+      return sections[0]?.data || [];
+    } else {
+      return sections[1]?.data || [];
+    }
+  };
 
   const renderInstalledItem = ({ item }: { item: any }) => (
     <TouchableOpacity onPress={() => loadSourceScreen(item)}>
@@ -133,9 +136,11 @@ export default function Sources() {
         </View>
         <TouchableOpacity 
           onPress={() => uninstallPlugin(item.pluginId)}
-          style={styles.actionButton}
+          style={[styles.actionButton, { backgroundColor: colors.error }]}
         >
-          <ThemedText variant="secondary">Uninstall</ThemedText>
+          <ThemedText variant="accent" style={styles.actionButtonText}>
+            Uninstall
+          </ThemedText>
         </TouchableOpacity>
       </ThemedView>
     </TouchableOpacity>
@@ -159,20 +164,27 @@ export default function Sources() {
       </View>
       <TouchableOpacity 
         onPress={() => installPlugin(item)}
-        style={[styles.actionButton, styles.installButton]}
+        style={[styles.actionButton, { backgroundColor: colors.success }]}
       >
-        <ThemedText variant="accent">Install</ThemedText>
+        <ThemedText variant="accent" style={styles.actionButtonText}>
+          Install
+        </ThemedText>
       </TouchableOpacity>
     </ThemedView>
   );
 
-  const renderItem = ({ item, section }: { item: any; section: SourceSection }) => {
-    if (section.title === 'Installed Plugins') {
+  const renderItem = ({ item }: { item: any }) => {
+    if (activeTab === 'installed') {
       return renderInstalledItem({ item });
     } else {
       return renderAvailableItem({ item });
     }
   };
+
+  const tabData = [
+    { key: 'installed' as SourceTab, title: 'Installed', count: sections[0]?.data?.length || 0 },
+    { key: 'available' as SourceTab, title: 'Available', count: sections[1]?.data?.length || 0 },
+  ];
 
   if (loading) {
     return (
@@ -184,16 +196,62 @@ export default function Sources() {
 
   return (
     <ThemedView variant="background" style={styles.container}>
-      <SectionList
-        sections={sections}
-        keyExtractor={(item, index) => item.id || item.pluginId || index.toString()}
+      {/* Section Header - Horizontal Tabs */}
+      <ThemedView style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
+        <FlatList
+          horizontal
+          data={tabData}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => setActiveTab(item.key)}
+              style={[
+                styles.sectionButton,
+                activeTab === item.key && { backgroundColor: colors.surface }
+              ]}
+            >
+              <ThemedText 
+                variant={activeTab === item.key ? 'accent' : 'secondary'}
+                style={styles.sectionButtonText}
+              >
+                {item.title} ({item.count})
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => item.key}
+          contentContainerStyle={styles.sectionList}
+          showsHorizontalScrollIndicator={false}
+        />
+      </ThemedView>
+
+      {/* Source List */}
+      <FlatList
+        data={getDisplayData()}
         renderItem={renderItem}
-        renderSectionHeader={renderSectionHeader}
+        keyExtractor={(item) => item.id || item.pluginId}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <ThemedView style={styles.separator} />}
-        SectionSeparatorComponent={() => <ThemedView style={styles.sectionSeparator} />}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.accent]}
+          />
+        }
+        ListEmptyComponent={
+          <ThemedView style={styles.emptyContainer}>
+            <ThemedText variant="title" style={styles.emptyText}>
+              {activeTab === 'installed' 
+                ? 'No plugins installed' 
+                : 'No plugins available'
+              }
+            </ThemedText>
+            <ThemedText variant="secondary" style={styles.emptySubtext}>
+              {activeTab === 'installed' 
+                ? 'Install plugins from the Available tab' 
+                : 'Check back later for new plugins'
+              }
+            </ThemedText>
+          </ThemedView>
+        }
       />
     </ThemedView>
   );
@@ -208,23 +266,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listContent: {
-    paddingBottom: 16,
-  },
   sectionHeader: {
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  sectionList: {
+    gap: 12,
+  },
+  sectionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  sectionButtonText: {
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  listContent: {
+    padding: 16,
+    gap: 12,
+    flexGrow: 1,
   },
   sourceItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
+    gap: 12,
   },
   sourceHeader: {
     flexDirection: 'row',
@@ -259,18 +330,32 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   actionButton: {
-    padding: 8,
-    borderRadius: 4,
-    marginLeft: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
   },
-  installButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
-  separator: {
-    height: 1,
-    marginHorizontal: 16,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    minHeight: 200,
   },
-  sectionSeparator: {
-    height: 16,
+  emptyText: {
+    textAlign: 'center',
+    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  emptySubtext: {
+    textAlign: 'center',
+    opacity: 0.7,
+    fontSize: 14,
   },
 });
