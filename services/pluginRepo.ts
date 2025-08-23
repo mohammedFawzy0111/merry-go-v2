@@ -23,9 +23,9 @@ export class PluginRepositoryService {
   async getAvailablePlugins(): Promise<RepositoryPlugin[]> {
     try {
       const response = await axios.get<PluginRepository>(this.repositoryUrl, {
-        timeout: 10000,
+        timeout: 60000,
       });
-      
+     console.log(response.data) 
       return response.data.plugins || [];
     } catch (error) {
       console.error('Failed to fetch available plugins:', error);
