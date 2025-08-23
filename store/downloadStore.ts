@@ -1,5 +1,5 @@
 import { deletDownload, Download, getAllDownloads, getDownloadsByChapter, insertDownload, updateDownloadStatus } from '@/db/db';
-import { startDownloadService, stopDownloadService } from '@/services/DownloadManager';
+import { getLocatPath, startDownloadService, stopDownloadService } from '@/services/DownloadManager';
 import { create } from 'zustand';
 
 interface DownloadStor {
@@ -73,7 +73,7 @@ export const useDownloadStore = create<DownloadStor>((set,get) => ({
                 chapterTitle,
                 status: 'pending',
                 progress: 0,
-                localPath: '',
+                localPath: getLocatPath(mangaTitle,chapterTitle),
                 queueIndex: nextQueueIndex
             };
 

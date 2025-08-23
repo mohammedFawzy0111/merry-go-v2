@@ -31,11 +31,8 @@ const processDownload = async (download: Download) => {
     const chapterData = await source.source.fetchChapterDetails(download.chapterUrl);
     if (!chapterData.pages.length) throw new Error('No pages found for the chapter');
 
-    // Create organized folder structure: downloads/MangaTitle/ChapterTitle/
-    const safeMangaTitle = download.mangaTitle.replace(/[^a-zA-Z0-9]/g, '_');
-    const safeChapterTitle = download.chapterTitle.replace(/[^a-zA-Z0-9]/g, '_');
-    
-    const chapterDir = `${FileSystem.documentDirectory}downloads/${safeMangaTitle}/${safeChapterTitle}/`;
+    const chapterDir = getLocatPath(download.mangaTitle, download.chapterTitle)
+
     await FileSystem.makeDirectoryAsync(chapterDir, { intermediates: true });
 
     // Update download with the new local path
@@ -206,3 +203,11 @@ export const getDownloadProgress = async (chapterUrl: string) => {
   const download = await useDownloadStore.getState().getDownloadByChapter(chapterUrl);
   return download ? download.progress : 0;
 };
+
+export const getLocatPath = (mangaTitle:string, chapterTitle:string) => {
+   // Create organized folder structure: downloads/MangaTitle/ChapterTitle/
+    const safeMangaTitle = mangaTitle.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeChapterTitle = chapterTitle.replace(/[^a-zA-Z0-9]/g, '_');
+    const chapterDir = `${FileSystem.documentDirectory}downloads/${safeMangaTitle}/${safeChapterTitle}/`;
+    return chapterDir;
+}
