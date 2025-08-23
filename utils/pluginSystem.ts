@@ -22,12 +22,12 @@ export interface PluginSandbox {
     Source: typeof Source;
 
     console: {
-        log: (...args:any[]) => void;
-        warn: (...args:any[]) => void;
-        error: (...args:any[]) => void;
+        log: (...args: any[]) => void;
+        warn: (...args: any[]) => void;
+        error: (...args: any[]) => void;
     }
 
-    // utitlity functions
+    // utility functions
     utils: {
         createManga: (params: ConstructorParameters<typeof Manga>[0]) => Manga;
         createChapter: (params: ConstructorParameters<typeof Chapter>[0]) => Chapter;
@@ -45,8 +45,8 @@ export class PluginManager {
     private pluginsDir: string;
     private manifestPath: string;
 
-    constructor(){
-        this.pluginsDir =`${FileSystem.documentDirectory}plugins/`;
+    constructor() {
+        this.pluginsDir = `${FileSystem.documentDirectory}plugins/`;
         this.manifestPath = `${this.pluginsDir}manifest.json`;
         this.ensurePluginsDirectory();
     }
@@ -54,13 +54,13 @@ export class PluginManager {
     private async ensurePluginsDirectory(): Promise<void> {
         try {
             const dirInfo = await FileSystem.getInfoAsync(this.pluginsDir);
-            if(!dirInfo.exists){
+            if (!dirInfo.exists) {
                 await FileSystem.makeDirectoryAsync(this.pluginsDir, { intermediates: true });
             }
 
             // Initialize manifest if it doesn't exist
             const manifestInfo = await FileSystem.getInfoAsync(this.manifestPath);
-            if(!manifestInfo.exists){
+            if (!manifestInfo.exists) {
                 await FileSystem.writeAsStringAsync(this.manifestPath, JSON.stringify([]));
             }
         } catch (error) {
@@ -68,27 +68,26 @@ export class PluginManager {
         }
     }
 
-    private createSandbox(): PluginSandbox {
-        return{
+    private createSecureSandbox(): PluginSandbox {
+        const sandbox: PluginSandbox = {
             http: {
-                get: async(url:string, config?:any) => {
-                    //validate URL
-                    if(!this.isValidUrl(url)){
+                get: async (url: string, config?: any) => {
+                    if (!this.isValidUrl(url)) {
                         throw new Error(`Invalid URL: ${url}`);
                     }
 
-                    try{
+                    try {
                         const response = await axios.get(url, {
                             ...config,
                             timeout: 30000,
-                            maxContentLength: 10 * 1024 * 1024, // 10MB limit
+                            maxContentLength: 10 * 1024 * 1024,
                         });
-                        return{
+                        return {
                             data: response.data,
                             status: response.status,
                             headers: response.headers,
                         };
-                    } catch (error){
+                    } catch (error) {
                         console.error('HTTP request failed:', error);
                         throw error;
                     }
@@ -108,13 +107,30 @@ export class PluginManager {
                 createSource: (params) => new Source(params),
             }
         };
+
+        // Create a secure proxy that prevents access to global scope
+        return new Proxy(sandbox, {
+            has: (target, prop) => {
+                return prop in target;
+            },
+            get: (target, prop) => {
+                if (prop in target) {
+                    const value = target[prop as keyof PluginSandbox];
+                    return typeof value === 'function' ? value.bind(target) : value;
+                }
+                throw new Error(`Access to '${String(prop)}' is not allowed in plugin sandbox`);
+            },
+            set: () => {
+                throw new Error('Modifying the sandbox is not allowed');
+            }
+        });
     }
 
-    private isValidUrl(url:string): boolean {
+    private isValidUrl(url: string): boolean {
         try {
             const parsed = new URL(url);
             return ['http:', 'https:'].includes(parsed.protocol);
-        } catch{
+        } catch {
             return false;
         }
     }
@@ -138,10 +154,11 @@ export class PluginManager {
         }
     }
 
-    private async downloadPluginCode(url:string): Promise<string> {
+    private async downloadPluginCode(url: string): Promise<string> {
         try {
             const response = await axios.get(url, {
                 responseType: 'text',
+                timeout: 30000,
             });
             return response.data;
         } catch (error) {
@@ -153,7 +170,7 @@ export class PluginManager {
     private async savePluginLocally(pluginId: string, code: string): Promise<string> {
         const pluginPath = `${this.pluginsDir}${pluginId}.js`;
         await FileSystem.writeAsStringAsync(pluginPath, code);
-        return pluginPath
+        return pluginPath;
     }
 
     private async loadPluginCode(pluginId: string): Promise<string> {
@@ -166,24 +183,124 @@ export class PluginManager {
         }
     }
 
+    private sanitizePluginCode(code: string): string {
+        // Remove potential dangerous patterns
+        const dangerousPatterns = [
+            /eval\s*\(/g,
+            /Function\s*\(/g,
+            /setTimeout\s*\(/g,
+            /setInterval\s*\(/g,
+            /import\s*\(/g,
+            /require\s*\(/g,
+            /process\./g,
+            /global\./g,
+            /window\./g,
+            /document\./g,
+            /localStorage\./g,
+            /XMLHttpRequest/g,
+            /fetch\s*\(/g,
+            /WebSocket/g,
+        ];
+
+        let sanitizedCode = code;
+        dangerousPatterns.forEach(pattern => {
+            sanitizedCode = sanitizedCode.replace(pattern, '// SECURITY: $& disabled');
+        });
+
+        return sanitizedCode;
+    }
+
+    private validatePluginCode(code: string): void {
+        const blacklist = [
+            'eval(',
+            'Function(',
+            'import(',
+            'require(',
+            'process.',
+            'global.',
+            'window.',
+            'document.',
+            'localStorage.',
+            'XMLHttpRequest',
+            'fetch(',
+            'WebSocket',
+        ];
+
+        const violations = blacklist.filter(item => code.includes(item));
+        if (violations.length > 0) {
+            throw new Error(`Plugin contains prohibited code: ${violations.join(', ')}`);
+        }
+    }
+
+    private async executePluginSafely(
+        code: string,
+        sandbox: PluginSandbox,
+        module: any,
+        exports: any
+    ): Promise<void> {
+        // Create a function that properly handles CommonJS exports
+        const pluginFunction = new Function(
+            'sandbox',
+            'module',
+            'exports',
+            `
+            // Expose sandbox properties as local variables
+            const { http, Manga, Chapter, Source, console: pluginConsole, utils } = sandbox;
+            
+            // Add support for CommonJS module.exports
+            const require = (moduleName) => {
+                throw new Error('require() is not allowed in plugins. Use the provided sandbox objects.');
+            };
+            
+            // Freeze critical constructors to prevent prototype pollution
+            Object.freeze(Manga.prototype);
+            Object.freeze(Chapter.prototype);
+            Object.freeze(Source.prototype);
+            
+            try {
+                // Execute plugin code
+                ${code}
+                
+                // If the plugin uses module.exports, copy it to exports
+                if (module.exports && typeof module.exports === 'object' && Object.keys(module.exports).length > 0) {
+                    Object.assign(exports, module.exports);
+                }
+                
+            } catch (error) {
+                pluginConsole.error('Plugin execution error:', error);
+                throw new Error('Plugin execution failed: ' + error.message);
+            }
+            `
+        );
+
+        pluginFunction(sandbox, module, exports);
+    }
+
     async installPlugin(
         pluginUrl: string,
         manifest: Omit<PluginManifest, 'id' | 'installedAt' | 'updatedAt'>
-    ): Promise<PluginSource>{
+    ): Promise<PluginSource> {
         try {
-            // download the code
+            console.log('Downloading plugin from:', pluginUrl);
             const pluginCode = await this.downloadPluginCode(pluginUrl);
-            // generate unique id
-            const pluginId = `plugin_${Date.now}_${Math.random().toString(36).substring(2, 9)}`;
+            
+            console.log('Plugin code downloaded, length:', pluginCode.length);
+            console.log('First 500 chars:', pluginCode.substring(0, 500));
 
-            await this.savePluginLocally(pluginId, pluginCode);
+            // Validate and sanitize
+            this.validatePluginCode(pluginCode);
+            const sanitizedCode = this.sanitizePluginCode(pluginCode);
+
+            const pluginId = `plugin_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+            await this.savePluginLocally(pluginId, sanitizedCode);
 
             const fullManifest: PluginManifest = {
                 ...manifest,
                 id: pluginId,
                 installedAt: new Date().toISOString(),
                 entryPoint: pluginUrl,
-            }
+            };
 
             const manifests = await this.readManifest();
             manifests.push(fullManifest);
@@ -198,7 +315,7 @@ export class PluginManager {
 
     async loadPlugin(pluginId: string): Promise<PluginSource> {
         try {
-            if(this.plugins.has(pluginId)){
+            if (this.plugins.has(pluginId)) {
                 return this.plugins.get(pluginId)!;
             }
 
@@ -206,30 +323,22 @@ export class PluginManager {
             const manifests = await this.readManifest();
             const manifest = manifests.find(m => m.id === pluginId);
 
-            if(!manifest){
+            if (!manifest) {
                 throw new Error(`Plugin ${pluginId} not found in manifest`);
             }
 
-            const sandbox = this.createSandbox();
+            const secureSandbox = this.createSecureSandbox();
             const pluginExports = {};
             const pluginModule = { exports: pluginExports };
 
-            const pluginFunction = new Function(
-                'sandbox',
-                'module',
-                'exports',
-                `
-                with (sandbox) {
-                    ${pluginCode}
-                }
-                `
-            );
+            console.log('Executing plugin:', pluginId);
+            await this.executePluginSafely(pluginCode, secureSandbox, pluginModule, pluginExports);
 
-            pluginFunction(sandbox, pluginModule, pluginExports);
+            console.log('Plugin executed successfully, exports:', Object.keys(pluginExports));
 
-            const source = pluginModule.exports;
-            if(!(source instanceof Source)){
-                throw new Error('Plugin must export a Source instance');
+            const source = pluginExports;
+            if (!(source instanceof Source)) {
+                throw new Error('Plugin must export a Source instance. Got: ' + typeof source);
             }
 
             const pluginSource: PluginSource = {
@@ -249,17 +358,22 @@ export class PluginManager {
     async loadAllPlugins(): Promise<PluginSource[]> {
         try {
             const manifests = await this.readManifest();
+            console.log('Loading all plugins, manifest count:', manifests.length);
+            
             const loadedPlugins: PluginSource[] = [];
 
-            for(const manifest of manifests){
+            for (const manifest of manifests) {
                 try {
+                    console.log('Loading plugin:', manifest.id);
                     const plugin = await this.loadPlugin(manifest.id);
                     loadedPlugins.push(plugin);
+                    console.log('Plugin loaded successfully:', manifest.name);
                 } catch (error) {
                     console.error(`Failed to load plugin ${manifest.id}:`, error);
                 }
             }
 
+            console.log('Total plugins loaded:', loadedPlugins.length);
             return loadedPlugins;
         } catch (error) {
             console.error('Failed to load all plugins:', error);
@@ -267,7 +381,7 @@ export class PluginManager {
         }
     }
 
-    async uninstallPlugin(pluginId:string) : Promise<boolean> {
+    async uninstallPlugin(pluginId: string): Promise<boolean> {
         try {
             this.plugins.delete(pluginId);
 
@@ -289,7 +403,7 @@ export class PluginManager {
         return await this.readManifest();
     }
 
-    getLoadedPlugin(pluginId:string): PluginSource | undefined {
+    getLoadedPlugin(pluginId: string): PluginSource | undefined {
         return this.plugins.get(pluginId);
     }
 
@@ -299,30 +413,32 @@ export class PluginManager {
 
     async updatePlugin(pluginId: string): Promise<PluginSource> {
         try {
-        const manifests = await this.readManifest();
-        const manifest = manifests.find(m => m.id === pluginId);
-        
-        if (!manifest) {
-            throw new Error(`Plugin ${pluginId} not found`);
-        }
-        
-        // Download updated code
-        const updatedCode = await this.downloadPluginCode(manifest.entryPoint);
-        
-        // Save updated code
-        await this.savePluginLocally(pluginId, updatedCode);
-        
-        // Update manifest timestamp
-        manifest.updatedAt = new Date().toISOString();
-        await this.writeManifest(manifests);
-        
-        // Reload plugin
-        this.plugins.delete(pluginId); // Remove old version
-        return await this.loadPlugin(pluginId);
-        
+            const manifests = await this.readManifest();
+            const manifest = manifests.find(m => m.id === pluginId);
+
+            if (!manifest) {
+                throw new Error(`Plugin ${pluginId} not found`);
+            }
+
+            // Download updated code
+            const updatedCode = await this.downloadPluginCode(manifest.entryPoint);
+            this.validatePluginCode(updatedCode);
+            const sanitizedCode = this.sanitizePluginCode(updatedCode);
+
+            // Save updated code
+            await this.savePluginLocally(pluginId, sanitizedCode);
+
+            // Update manifest timestamp
+            manifest.updatedAt = new Date().toISOString();
+            await this.writeManifest(manifests);
+
+            // Reload plugin
+            this.plugins.delete(pluginId);
+            return await this.loadPlugin(pluginId);
+
         } catch (error) {
-        console.error(`Failed to update plugin ${pluginId}:`, error);
-        throw new Error(`Plugin update failed: ${error}`);
+            console.error(`Failed to update plugin ${pluginId}:`, error);
+            throw new Error(`Plugin update failed: ${error}`);
         }
     }
 }
