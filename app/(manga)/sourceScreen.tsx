@@ -4,7 +4,7 @@ import { ThemedCard } from "@/components/ThemedCard";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
-import { sources } from "@/sources";
+import { sourceManager } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -65,7 +65,7 @@ export default function SourceScreen() {
   }, [screenWidth]);
 
 
-  const source = sources.find((s) => s.name === sourceName);
+  const source = sourceManager.getSourceByName(sourceName as string);
 
   if (!source) {
     return (

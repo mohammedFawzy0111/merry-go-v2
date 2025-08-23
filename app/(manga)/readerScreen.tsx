@@ -1,7 +1,7 @@
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useReadingMode, useTheme } from "@/contexts/settingProvider";
-import { sources } from "@/sources";
+import { sourceManager } from "@/sources";
 import { useDownloadStore } from "@/store/downloadStore";
 import { Chapter } from "@/utils/sourceModel";
 import { Ionicons } from "@expo/vector-icons";
@@ -192,7 +192,7 @@ export default function ChapterReader() {
   const insets = useSafeAreaInsets();
   const { loadDownloads,getDownloadByChapter } = useDownloadStore();
 
-  const source = sources.find((el) => el.name === sourceName)?.source;
+  const source = sourceManager.getSourceByName(sourceName as string)?.source;
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);

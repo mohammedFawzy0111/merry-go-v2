@@ -3,7 +3,7 @@ import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
-import { placeHolderSource, sources } from "@/sources";
+import { placeHolderSource, sourceManager } from "@/sources";
 import { useCategoryStore } from "@/store/categoryStore";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useMangaStore } from "@/store/mangaStore";
@@ -151,7 +151,7 @@ export default function MangaDetails() {
   const { addToDownloadQueue, downloads } = useDownloadStore();
   const { categories, loadCategories } = useCategoryStore()
   const router = useRouter();
-  const source = sources.find((el) => el.name === sourceName)?.source;
+  const source = sourceManager.getSourceByName(sourceName as string)?.source;
 
   const [manga, setManga] = useState<Manga>(
     new Manga({

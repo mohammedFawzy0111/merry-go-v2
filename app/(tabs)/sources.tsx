@@ -2,64 +2,36 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/contexts/settingProvider';
+import { pluginRepositoryService, RepositoryPlugin } from '@/services/pluginRepo';
 import { sourceManager } from '@/sources';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
-
-interface SourceSection {
-  title: string;
-  data: any[];
-}
+import { ActivityIndicator, Alert, FlatList, Image, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 type SourceTab = 'installed' | 'available';
 
 export default function Sources() {
   const { colors } = useTheme();
   const router = useRouter();
-  const [sections, setSections] = useState<SourceSection[]>([]);
+  const [installedPlugins, setInstalledPlugins] = useState<any[]>([]);
+  const [availablePlugins, setAvailablePlugins] = useState<RepositoryPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<SourceTab>('installed');
+  const [installingId, setInstallingId] = useState<string | null>(null);
 
   const loadSources = async () => {
     try {
-      const installedSources = sourceManager.getAllSources();
-      
-      // This would typically come from a plugin repository API
-      const availablePlugins = [
-        {
-          id: 'plugin_1',
-          name: 'MangaDex',
-          icon: 'https://mangadex.org/favicon.ico',
-          description: 'Official MangaDex plugin',
-          author: 'Community',
-          version: '1.0.0',
-          repoUrl: 'https://raw.githubusercontent.com/your-repo/mangadex/main/plugin.js'
-        },
-        {
-          id: 'plugin_2',
-          name: 'MangaSee',
-          icon: 'https://mangasee123.com/favicon.ico',
-          description: 'MangaSee plugin',
-          author: 'Community',
-          version: '1.0.0',
-          repoUrl: 'https://raw.githubusercontent.com/your-repo/mangasee/main/plugin.js'
-        }
-      ];
+      // Load installed plugins
+      const installed = sourceManager.getAllSources();
+      setInstalledPlugins(installed);
 
-      setSections([
-        {
-          title: 'Installed Plugins',
-          data: installedSources
-        },
-        {
-          title: 'Available Plugins',
-          data: availablePlugins
-        }
-      ]);
+      // Load available plugins from repository
+      const available = await pluginRepositoryService.getAvailablePlugins();
+      setAvailablePlugins(available);
     } catch (error) {
       console.error('Failed to load sources:', error);
+      Alert.alert('Error', 'Failed to load plugins from repository');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -75,27 +47,36 @@ export default function Sources() {
     loadSources();
   };
 
-  const installPlugin = async (plugin: any) => {
+  const installPlugin = async (plugin: RepositoryPlugin) => {
     try {
-      setLoading(true);
-      await sourceManager.installPluginSource(plugin.repoUrl, {
+      setInstallingId(plugin.id);
+      await sourceManager.installPluginSource(plugin.entryPoint, {
         name: plugin.name,
         version: plugin.version,
-        icon: plugin.icon
+        icon: plugin.icon,
       });
-      loadSources(); // Reload to update the list
+      await loadSources(); // Reload to update the list
+      Alert.alert('Success', `${plugin.name} installed successfully!`);
     } catch (error) {
       console.error('Failed to install plugin:', error);
+      Alert.alert('Error', `Failed to install ${plugin.name}: ${error}`);
+    } finally {
+      setInstallingId(null);
     }
   };
 
-  const uninstallPlugin = async (pluginId: string) => {
+  const uninstallPlugin = async (pluginId: string, pluginName: string) => {
     try {
-      setLoading(true);
-      await sourceManager.uninstallPluginSource(pluginId);
-      loadSources(); // Reload to update the list
+      const success = await sourceManager.uninstallPluginSource(pluginId);
+      if (success) {
+        await loadSources(); // Reload to update the list
+        Alert.alert('Success', `${pluginName} uninstalled successfully!`);
+      } else {
+        Alert.alert('Error', `Failed to uninstall ${pluginName}`);
+      }
     } catch (error) {
       console.error('Failed to uninstall plugin:', error);
+      Alert.alert('Error', `Failed to uninstall ${pluginName}: ${error}`);
     }
   };
 
@@ -108,9 +89,9 @@ export default function Sources() {
 
   const getDisplayData = () => {
     if (activeTab === 'installed') {
-      return sections[0]?.data || [];
+      return installedPlugins;
     } else {
-      return sections[1]?.data || [];
+      return availablePlugins;
     }
   };
 
@@ -135,8 +116,9 @@ export default function Sources() {
           </View>
         </View>
         <TouchableOpacity 
-          onPress={() => uninstallPlugin(item.pluginId)}
+          onPress={() => uninstallPlugin(item.pluginId, item.name)}
           style={[styles.actionButton, { backgroundColor: colors.error }]}
+          disabled={installingId !== null}
         >
           <ThemedText variant="accent" style={styles.actionButtonText}>
             Uninstall
@@ -146,7 +128,7 @@ export default function Sources() {
     </TouchableOpacity>
   );
 
-  const renderAvailableItem = ({ item }: { item: any }) => (
+  const renderAvailableItem = ({ item }: { item: RepositoryPlugin }) => (
     <ThemedView variant="surface" style={styles.sourceItem}>
       <View style={styles.sourceHeader}>
         {item.icon && (
@@ -160,15 +142,31 @@ export default function Sources() {
           <ThemedText variant="default" style={styles.sourceName}>
             {item.name}
           </ThemedText>
+          <ThemedText variant="subtitle" style={styles.sourceVersion}>
+            v{item.version}
+          </ThemedText>
+          {item.description && (
+            <ThemedText variant="secondary" style={styles.sourceDescription}>
+              {item.description}
+            </ThemedText>
+          )}
         </View>
       </View>
       <TouchableOpacity 
         onPress={() => installPlugin(item)}
-        style={[styles.actionButton, { backgroundColor: colors.success }]}
+        style={[styles.actionButton, { 
+          backgroundColor: installingId === item.id ? colors.tint : colors.success,
+          opacity: installingId === item.id ? 0.7 : 1
+        }]}
+        disabled={installingId !== null}
       >
-        <ThemedText variant="accent" style={styles.actionButtonText}>
-          Install
-        </ThemedText>
+        {installingId === item.id ? (
+          <ActivityIndicator size="small" color={colors.text} />
+        ) : (
+          <ThemedText variant="accent" style={styles.actionButtonText}>
+            Install
+          </ThemedText>
+        )}
       </TouchableOpacity>
     </ThemedView>
   );
@@ -182,14 +180,17 @@ export default function Sources() {
   };
 
   const tabData = [
-    { key: 'installed' as SourceTab, title: 'Installed', count: sections[0]?.data?.length || 0 },
-    { key: 'available' as SourceTab, title: 'Available', count: sections[1]?.data?.length || 0 },
+    { key: 'installed' as SourceTab, title: 'Installed', count: installedPlugins.length },
+    { key: 'available' as SourceTab, title: 'Available', count: availablePlugins.length },
   ];
 
   if (loading) {
     return (
       <ThemedView variant="background" style={styles.centerContainer}>
         <ActivityIndicator size="large" color={colors.tint} />
+        <ThemedText variant="secondary" style={{ marginTop: 16 }}>
+          Loading plugins...
+        </ThemedText>
       </ThemedView>
     );
   }
@@ -323,11 +324,7 @@ const styles = StyleSheet.create({
   sourceDescription: {
     fontSize: 12,
     opacity: 0.8,
-    marginBottom: 2,
-  },
-  sourceAuthor: {
-    fontSize: 11,
-    opacity: 0.6,
+    marginTop: 4,
   },
   actionButton: {
     paddingHorizontal: 12,
@@ -335,6 +332,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     minWidth: 80,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   actionButtonText: {
     fontSize: 12,
