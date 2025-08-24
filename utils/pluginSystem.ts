@@ -2,6 +2,7 @@
 import { Chapter, Manga, Source } from "@/utils/sourceModel";
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
+import "ses"; // SES runtime
 
 export interface PluginManifest {
   id: string;
