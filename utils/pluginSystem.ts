@@ -182,6 +182,13 @@ export class PluginManager {
     });
   }
 
+  // ---- validation for single source ----
+  private validateSingleSource(pluginId: string, sources: any[]): void {
+    if (sources.length > 1) {
+      throw new Error(`Plugin ${pluginId} attempted to register multiple sources. Only one source per plugin is allowed.`);
+    }
+  }
+
   // ---- execution (safer new Function usage) ----
   /**
    * Execute plugin code inside a light sandbox.
@@ -241,9 +248,8 @@ export class PluginManager {
   async loadPlugin(pluginId: string): Promise<PluginSource[]> {
     try {
       // already loaded?
-      if (Array.from(this.plugins.keys()).some(k => k.startsWith(pluginId + ":"))) {
-        // return loaded plugin sources for this plugin
-        return Array.from(this.plugins.values()).filter(p => p.pluginId === pluginId);
+      if (this.plugins.has(pluginId)) {
+        return [this.plugins.get(pluginId)!];
       }
 
       const code = await this.loadPluginCode(pluginId);
@@ -269,7 +275,7 @@ export class PluginManager {
       // Determine sources that plugin produced:
       // 1) If plugin used registerSource(), we have collected them
       // 2) Else, check module.exports or exports.default for a Source or array of Source
-      const discoveredSources: any[] = [];
+      let discoveredSources: any[] = [];
 
       if (registeredSources.length > 0) {
         discoveredSources.push(...registeredSources);
@@ -282,45 +288,52 @@ export class PluginManager {
         }
       }
 
-      // Normalize and register discovered sources
-      const registered: PluginSource[] = [];
+      // Validate that only one source is provided
+      this.validateSingleSource(pluginId, discoveredSources);
 
-      for (let i = 0; i < discoveredSources.length; i++) {
-        const s = discoveredSources[i];
-
-        // If plugin returned something that looks like a Source object (duck-typing),
-        // try to create a proper Source instance if it's plain object (optional).
-        let sourceObj: any = s;
-        if (!(s instanceof Source) && typeof s === "object") {
-          // try to create Source instance if available fields exist
-          try {
-            sourceObj = new Source(s);
-            // copy over methods if plugin provided functions separately
-            Object.assign(sourceObj, s);
-          } catch (err) {
-            // fallback: keep the object as is and hope it matches Source interface
-            sourceObj = s;
-          }
-        }
-
-        // ensure it has id
-        const sourceId = (sourceObj && sourceObj.id) || `source_${pluginId}_${i}`;
-
-        // plugin-scoped map key to allow multiple sources per plugin
-        const mapKey = `${pluginId}:${sourceId}`;
-
-        const pluginSource: PluginSource = {
-          ...sourceObj,
-          id: sourceId,
-          pluginId,
-          manifest,
-        };
-
-        this.plugins.set(mapKey, pluginSource);
-        registered.push(pluginSource);
+      if (discoveredSources.length === 0) {
+        throw new Error(`Plugin ${pluginId} did not export any source`);
       }
 
-      return registered;
+      // If we have exactly one source, process it
+      let sourceObj: any = discoveredSources[0];
+
+      // Handle class constructors (if plugin exports a class rather than instance)
+      if (typeof sourceObj === 'function' && sourceObj.prototype instanceof Source) {
+        try {
+          sourceObj = new sourceObj();
+        } catch (err) {
+          console.error("Failed to instantiate Source class:", err);
+          throw new Error(`Plugin ${pluginId} exported a Source class but failed to instantiate it`);
+        }
+      }
+
+      // If plugin returned something that looks like a Source object (duck-typing),
+      // try to create a proper Source instance if it's plain object (optional).
+      if (!(sourceObj instanceof Source) && typeof sourceObj === "object") {
+        // try to create Source instance if available fields exist
+        try {
+          sourceObj = new Source(sourceObj);
+          // copy over methods if plugin provided functions separately
+          Object.assign(sourceObj, discoveredSources[0]);
+        } catch (err) {
+          // fallback: keep the object as is and hope it matches Source interface
+          sourceObj = discoveredSources[0];
+        }
+      }
+
+      // ensure it has id
+      const sourceId = (sourceObj && sourceObj.id) || pluginId;
+
+      const pluginSource: PluginSource = {
+        ...sourceObj,
+        id: sourceId,
+        pluginId,
+        manifest,
+      };
+
+      this.plugins.set(pluginId, pluginSource);
+      return [pluginSource];
     } catch (err) {
       console.error(`Failed to load plugin ${pluginId}:`, err);
       throw err;
@@ -350,6 +363,9 @@ export class PluginManager {
         createSource: (params: any) => new Source(params),
       },
       registerSource: (s: any) => {
+        if (collector.length > 0) {
+          throw new Error("Only one source can be registered per plugin");
+        }
         collector.push(s);
       },
     };
@@ -405,9 +421,8 @@ export class PluginManager {
 
   async uninstallPlugin(pluginId: string): Promise<boolean> {
     try {
-      // remove loaded plugin entries (all keys that start with pluginId:)
-      const keys = Array.from(this.plugins.keys()).filter(k => k.startsWith(`${pluginId}:`));
-      for (const k of keys) this.plugins.delete(k);
+      // remove loaded plugin entry
+      this.plugins.delete(pluginId);
 
       const manifests = await this.readManifest();
       const filtered = manifests.filter(m => m.id !== pluginId);
@@ -441,9 +456,8 @@ export class PluginManager {
     return this.readManifest();
   }
 
-  getLoadedPlugin(pluginKey: string): PluginSource | undefined {
-    // pluginKey is pluginId:sourceId
-    return this.plugins.get(pluginKey);
+  getLoadedPlugin(pluginId: string): PluginSource | undefined {
+    return this.plugins.get(pluginId);
   }
 
   getAllLoadedPlugins(): PluginSource[] {
@@ -459,10 +473,8 @@ export class PluginManager {
     await this.savePluginLocally(pluginId, code);
     manifest.updatedAt = new Date().toISOString();
     await this.writeManifest(manifests);
-    // reload
-    // remove old entries
-    const oldKeys = Array.from(this.plugins.keys()).filter(k => k.startsWith(`${pluginId}:`));
-    for (const k of oldKeys) this.plugins.delete(k);
+    // remove old entry
+    this.plugins.delete(pluginId);
     return await this.loadPlugin(pluginId);
   }
 }
