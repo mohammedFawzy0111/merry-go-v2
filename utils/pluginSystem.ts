@@ -154,31 +154,20 @@ export class PluginManager {
   }
 
   // ---- timeout wrapper ----
-  private runWithTimeout<T>(fn: () => Promise<T>, ms = DEFAULT_EXEC_TIMEOUT): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      let done = false;
+  private async runWithTimeout<T>(fn: () => Promise<T>, ms = DEFAULT_EXEC_TIMEOUT): Promise<T> {
+    return new Promise<T>(async (resolve, reject) => {
       const timer = setTimeout(() => {
-        if (!done) {
-          done = true;
-          reject(new Error("Plugin execution timed out"));
-        }
+        reject(new Error("Plugin execution timed out"));
       }, ms);
 
-      fn()
-        .then(res => {
-          if (!done) {
-            done = true;
-            clearTimeout(timer);
-            resolve(res);
-          }
-        })
-        .catch(err => {
-          if (!done) {
-            done = true;
-            clearTimeout(timer);
-            reject(err);
-          }
-        });
+      try {
+        const result = await fn();
+        clearTimeout(timer);
+        resolve(result);
+      } catch (error) {
+        clearTimeout(timer);
+        reject(error);
+      }
     });
   }
 
@@ -205,7 +194,7 @@ export class PluginManager {
     moduleObj: any,
     exportsObj: any
   ): Promise<any> {
-    // Do not mutate plugin code; we will execute it within an async IIFE so plugin may use top-level await
+    // Create an async function that properly handles top-level await
     const wrapped = `
       return (async function(sandbox, module, exports) {
         // Shadow dangerous globals
@@ -223,6 +212,7 @@ export class PluginManager {
         } catch(e) {}
 
         try {
+          // Wrap the plugin code in an async context to support top-level await
           ${code}
         } catch (err) {
           // forward plugin errors
@@ -238,10 +228,15 @@ export class PluginManager {
     `;
 
     // create function and execute with timeout
-    const fn = new Function("sandbox", "module", "exports", wrapped);
-    const exec = () => Promise.resolve(fn(sandbox, moduleObj, exportsObj));
-    const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
-    return result;
+    try {
+      const fn = new Function("sandbox", "module", "exports", wrapped);
+      const exec = () => Promise.resolve(fn(sandbox, moduleObj, exportsObj));
+      const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
+      return result;
+    } catch (error) {
+      console.error("Plugin execution failed:", error);
+      throw error;
+    }
   }
 
   // ---- load plugin (core) ----
