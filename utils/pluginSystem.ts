@@ -178,15 +178,15 @@ export class PluginManager {
     }
   }
 
-  // ---- execution (safer new Function usage) ----
+    // ---- execution (safer new Function usage) ----
   /**
    * Execute plugin code inside a light sandbox.
-   * plugin code can:
+   * Plugin code can:
    *  - assign to module.exports
    *  - assign exports.default
    *  - call registerSource(...) which we inject into sandbox
    *
-   * returns the object from module.exports (if any) or exports.default or undefined.
+   * Returns the object from module.exports (if any) or exports.default or undefined.
    */
   private async executePluginSafely(
     code: string,
@@ -194,17 +194,17 @@ export class PluginManager {
     moduleObj: any,
     exportsObj: any
   ): Promise<any> {
-    // Create an async function that properly handles top-level await
+    // Wrap plugin code inside an extra IIFE so async functions are allowed
     const wrapped = `
       return (async function(sandbox, module, exports) {
         // Shadow dangerous globals
         const globalThis = undefined, window = undefined, self = undefined;
-        // make constructor inaccessible
         const Function = undefined, eval = undefined;
-        // expose sandbox variables to local scope
+
+        // Expose sandbox
         const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
 
-        // Freeze prototypes so plugin cannot easily mutate constructors
+        // Freeze prototypes to prevent mutation
         try {
           Object.freeze(Manga && Manga.prototype);
           Object.freeze(Chapter && Chapter.prototype);
@@ -212,22 +212,22 @@ export class PluginManager {
         } catch(e) {}
 
         try {
-          // Wrap the plugin code in an async context to support top-level await
-          ${code}
+          // Run plugin inside its own scope (IIFE) so async functions can be declared
+          (function() {
+            ${code}
+          })();
         } catch (err) {
-          // forward plugin errors
           pluginConsole && pluginConsole.error && pluginConsole.error('Plugin runtime error:', err);
           throw err;
         }
 
-        // Return module.exports if provided, else exports.default if provided
+        // Return module.exports or exports.default
         if (module && module.exports && Object.keys(module.exports).length) return module.exports;
         if (exports && (exports.default !== undefined)) return exports.default;
         return undefined;
       })(sandbox, module, exports);
     `;
 
-    // create function and execute with timeout
     try {
       const fn = new Function("sandbox", "module", "exports", wrapped);
       const exec = () => Promise.resolve(fn(sandbox, moduleObj, exportsObj));
@@ -238,6 +238,7 @@ export class PluginManager {
       throw error;
     }
   }
+
 
   // ---- load plugin (core) ----
   async loadPlugin(pluginId: string): Promise<PluginSource[]> {
