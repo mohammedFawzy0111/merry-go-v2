@@ -1,10 +1,6 @@
 import { SettingsProvider, useNightReading } from "@/contexts/settingProvider";
 import { Stack } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import 'ses';
-
-
-lockdown();
 
 function BlueLightOverlay () {
   const { nightReadingMode } = useNightReading();
