@@ -43,7 +43,6 @@
     "react-native-screens": "~4.11.1",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "ses": "^1.14.0",
     "zustand": "^5.0.7"
   },
   "devDependencies": {
