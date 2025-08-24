@@ -188,15 +188,14 @@ export class PluginManager {
    *
    * Returns the object from module.exports (if any) or exports.default or undefined.
    */
-  private async executePluginSafely(
+    private async executePluginSafely(
     code: string,
     sandbox: PluginSandbox,
     moduleObj: any,
     exportsObj: any
   ): Promise<any> {
-    // Wrap plugin code inside an extra IIFE so async functions are allowed
     const wrapped = `
-      return (async function(sandbox, module, exports) {
+      (async function(sandbox, module, exports) {
         // Shadow dangerous globals
         const globalThis = undefined, window = undefined, self = undefined;
         const Function = undefined, eval = undefined;
@@ -212,7 +211,7 @@ export class PluginManager {
         } catch(e) {}
 
         try {
-          // Run plugin inside its own scope (IIFE) so async functions can be declared
+          // Run plugin inside its own scope so async functions are valid
           (function() {
             ${code}
           })();
@@ -225,7 +224,7 @@ export class PluginManager {
         if (module && module.exports && Object.keys(module.exports).length) return module.exports;
         if (exports && (exports.default !== undefined)) return exports.default;
         return undefined;
-      })(sandbox, module, exports);
+      })(sandbox, module, exports)
     `;
 
     try {
