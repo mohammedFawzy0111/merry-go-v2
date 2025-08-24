@@ -111,6 +111,7 @@ export default function SourceScreen() {
     }
   } catch (err) {
     if (!cancelled) {
+      console.error('failed to to load manga:', err)
       ToastAndroid.show(`Failed to load manga: ${err}`, ToastAndroid.LONG);
       if (!loadMore) setMangas([]);
       setHasMore(false);

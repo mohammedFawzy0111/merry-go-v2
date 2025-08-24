@@ -23,10 +23,14 @@ class SourceManager {
 
   private async loadAllPluginSources(): Promise<void> {
     try {
-      const plugins = await pluginManager.loadAllPlugins();
-      this.pluginSources = plugins.map(plugin => ({
+      const pluginsArrays = await pluginManager.loadAllPlugins();
+      // pluginManager.loadAllPlugins() returns PluginSource[][]
+      // We need to flatten the array of arrays
+      const allPlugins = pluginsArrays.flat();
+      
+      this.pluginSources = allPlugins.map(plugin => ({
         name: plugin.name,
-        icon: plugin.icon,
+        icon: plugin.icon || '',
         source: plugin,
         pluginId: plugin.pluginId,
         manifest: plugin.manifest,
@@ -42,11 +46,23 @@ class SourceManager {
     icon?: string;
   }): Promise<SourceInfo> {
     try {
-      const pluginSource = await pluginManager.installPlugin(pluginUrl, {...manifestInfo, entryPoint:pluginUrl});
+      const pluginManifest = await pluginManager.installPlugin(pluginUrl, {
+        ...manifestInfo, 
+        entryPoint: pluginUrl
+      });
+      
+      // Load the plugin - this returns PluginSource[]
+      const pluginSources = await pluginManager.loadPlugin(pluginManifest.id);
+      if (pluginSources.length === 0) {
+        throw new Error('Plugin did not provide any source');
+      }
+      
+      // Take the first (and only) source from the array
+      const pluginSource = pluginSources[0];
       
       const sourceInfo: SourceInfo = {
         name: pluginSource.name,
-        icon: pluginSource.icon,
+        icon: pluginSource.icon || '',
         source: pluginSource,
         pluginId: pluginSource.pluginId,
         manifest: pluginSource.manifest,
@@ -88,21 +104,39 @@ class SourceManager {
 
   async updatePluginSource(pluginId: string): Promise<SourceInfo> {
     try {
-      const updatedPlugin = await pluginManager.updatePlugin(pluginId);
+      // updatePlugin returns PluginSource[]
+      const updatedPlugins = await pluginManager.updatePlugin(pluginId);
+      if (updatedPlugins.length === 0) {
+        throw new Error('No source found after update');
+      }
+      
+      // Take the first (and only) source from the array
+      const updatedPlugin = updatedPlugins[0];
       
       // Update in our list
       const index = this.pluginSources.findIndex(s => s.pluginId === pluginId);
       if (index !== -1) {
         this.pluginSources[index] = {
           name: updatedPlugin.name,
-          icon: updatedPlugin.icon,
+          icon: updatedPlugin.icon || '',
           source: updatedPlugin,
           pluginId: updatedPlugin.pluginId,
           manifest: updatedPlugin.manifest,
         };
+        return this.pluginSources[index];
       }
       
-      return this.pluginSources[index];
+      // If not found, add it
+      const sourceInfo: SourceInfo = {
+        name: updatedPlugin.name,
+        icon: updatedPlugin.icon || '',
+        source: updatedPlugin,
+        pluginId: updatedPlugin.pluginId,
+        manifest: updatedPlugin.manifest,
+      };
+      this.pluginSources.push(sourceInfo);
+      return sourceInfo;
+      
     } catch (error) {
       console.error('Failed to update plugin source:', error);
       throw error;
