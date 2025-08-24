@@ -189,54 +189,55 @@ export class PluginManager {
    * Returns the object from module.exports (if any) or exports.default or undefined.
    */
     private async executePluginSafely(
-    code: string,
-    sandbox: PluginSandbox,
-    moduleObj: any,
-    exportsObj: any
-  ): Promise<any> {
-    const wrapped = `
-      (async function(sandbox, module, exports) {
-        // Shadow dangerous globals
-        const globalThis = undefined, window = undefined, self = undefined;
-        const Function = undefined, eval = undefined;
+  code: string,
+  sandbox: PluginSandbox,
+  moduleObj: any,
+  exportsObj: any
+): Promise<any> {
+  // AsyncFunction constructor trick
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
-        // Expose sandbox
-        const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
+  const wrapped = `
+    // Shadow dangerous globals
+    const globalThis = undefined, window = undefined, self = undefined;
+    const Function = undefined, eval = undefined;
 
-        // Freeze prototypes to prevent mutation
-        try {
-          Object.freeze(Manga && Manga.prototype);
-          Object.freeze(Chapter && Chapter.prototype);
-          Object.freeze(Source && Source.prototype);
-        } catch(e) {}
-
-        try {
-          // Run plugin inside its own scope so async functions are valid
-          (function() {
-            ${code}
-          })();
-        } catch (err) {
-          pluginConsole && pluginConsole.error && pluginConsole.error('Plugin runtime error:', err);
-          throw err;
-        }
-
-        // Return module.exports or exports.default
-        if (module && module.exports && Object.keys(module.exports).length) return module.exports;
-        if (exports && (exports.default !== undefined)) return exports.default;
-        return undefined;
-      })(sandbox, module, exports)
-    `;
+    const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
 
     try {
-      const fn = new Function("sandbox", "module", "exports", wrapped);
-      const exec = () => Promise.resolve(fn(sandbox, moduleObj, exportsObj));
-      const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
-      return result;
-    } catch (error) {
-      console.error("Plugin execution failed:", error);
-      throw error;
+      Object.freeze(Manga?.prototype);
+      Object.freeze(Chapter?.prototype);
+      Object.freeze(Source?.prototype);
+    } catch(e) {}
+
+    try {
+      // Run plugin inside async scope
+      await (async () => {
+        ${code}
+      })();
+    } catch (err) {
+      pluginConsole?.error?.('Plugin runtime error:', err);
+      throw err;
     }
+
+    // Return module.exports or exports.default
+    if (module?.exports && Object.keys(module.exports).length) return module.exports;
+    if (exports?.default !== undefined) return exports.default;
+    return undefined;
+  `;
+
+  try {
+    // ⬇️ create async function instead of normal one
+    const fn = new AsyncFunction("sandbox", "module", "exports", wrapped);
+    const exec = () => fn(sandbox, moduleObj, exportsObj);
+    const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
+    return result;
+  } catch (error) {
+    console.error("Plugin execution failed:", error);
+    throw error;
   }
+}
+
 
 
   // ---- load plugin (core) ----
