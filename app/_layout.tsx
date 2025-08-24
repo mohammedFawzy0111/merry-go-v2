@@ -1,7 +1,6 @@
 import { SettingsProvider, useNightReading } from "@/contexts/settingProvider";
 import { Stack } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { Host } from "react-native-portalize";
 
 function BlueLightOverlay () {
   const { nightReadingMode } = useNightReading();
@@ -14,13 +13,11 @@ function BlueLightOverlay () {
 export default function RootLayout() {
   return (
     <SettingsProvider>
-      <Host>
         <BlueLightOverlay />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(manga)" options={{ headerShown: false }} />
         </Stack>
-      </Host>
     </SettingsProvider>
   );
 }
