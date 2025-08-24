@@ -172,6 +172,7 @@ export class PluginManager {
     });
   }
 
+<<<<<<< HEAD
   private validateSingleSource(pluginId: string, sources: any[]): void {
     if (sources.length > 1) {
       throw new Error(`Plugin ${pluginId} attempted to register multiple sources. Only one source per plugin is allowed.`);
@@ -206,10 +207,156 @@ export class PluginManager {
       } catch (err) {
         sandbox.console.error("Plugin runtime error:", err);
         throw err;
+=======
+  // ---- execution (safer new Function usage) ----
+  /**
+   * Execute plugin code inside a light sandbox.
+   * plugin code can:
+   *  - assign to module.exports
+   *  - assign exports.default
+   *  - call registerSource(...) which we inject into sandbox
+   *
+   * returns the object from module.exports (if any) or exports.default or undefined.
+   */
+  private async executePluginSafely(
+    code: string,
+    sandbox: PluginSandbox,
+    moduleObj: any,
+    exportsObj: any
+  ): Promise<any> {
+    // Do not mutate plugin code; we will execute it within an async IIFE so plugin may use top-level await
+    const wrapped = `
+      return (async function(sandbox, module, exports) {
+        // Shadow dangerous globals
+        const globalThis = undefined, window = undefined, self = undefined;
+        // make constructor inaccessible
+        const Function = undefined, eval = undefined;
+        // expose sandbox variables to local scope
+        const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
+
+        // Freeze prototypes so plugin cannot easily mutate constructors
+        try {
+          Object.freeze(Manga && Manga.prototype);
+          Object.freeze(Chapter && Chapter.prototype);
+          Object.freeze(Source && Source.prototype);
+        } catch(e) {}
+
+        try {
+          ${code}
+        } catch (err) {
+          // forward plugin errors
+          pluginConsole && pluginConsole.error && pluginConsole.error('Plugin runtime error:', err);
+          throw err;
+        }
+
+        // Return module.exports if provided, else exports.default if provided
+        if (module && module.exports && Object.keys(module.exports).length) return module.exports;
+        if (exports && (exports.default !== undefined)) return exports.default;
+        return undefined;
+      })(sandbox, module, exports);
+    `;
+
+    // create function and execute with timeout
+    const fn = new Function("sandbox", "module", "exports", wrapped);
+    const exec = () => Promise.resolve(fn(sandbox, moduleObj, exportsObj));
+    const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
+    return result;
+  }
+
+  // ---- load plugin (core) ----
+  async loadPlugin(pluginId: string): Promise<PluginSource[]> {
+    try {
+      // already loaded?
+      if (Array.from(this.plugins.keys()).some(k => k.startsWith(pluginId + ":"))) {
+        // return loaded plugin sources for this plugin
+        return Array.from(this.plugins.values()).filter(p => p.pluginId === pluginId);
+>>>>>>> parent of 742dd0a (fix plugin loading)
       }
     };
 
+<<<<<<< HEAD
     return this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
+=======
+      const code = await this.loadPluginCode(pluginId);
+      const manifests = await this.readManifest();
+      const manifest = manifests.find(m => m.id === pluginId);
+      if (!manifest) throw new Error(`Manifest for ${pluginId} not found`);
+
+      // validate (light)
+      this.validatePluginCode(code);
+
+      // prepare sandbox & collector
+      const registeredSources: any[] = [];
+
+      const sandbox = this.createSandboxForExecution(registeredSources);
+
+      // prepare module/exports objects (CommonJS-like)
+      const pluginModule: any = { exports: {} };
+      const pluginExports: any = {};
+
+      // execute plugin code
+      const execResult = await this.executePluginSafely(code, sandbox, pluginModule, pluginExports);
+
+      // Determine sources that plugin produced:
+      // 1) If plugin used registerSource(), we have collected them
+      // 2) Else, check module.exports or exports.default for a Source or array of Source
+      const discoveredSources: any[] = [];
+
+      if (registeredSources.length > 0) {
+        discoveredSources.push(...registeredSources);
+      } else {
+        const candidate = execResult || pluginModule.exports || pluginExports.default || pluginExports;
+        if (candidate) {
+          // accept single source or array
+          if (Array.isArray(candidate)) discoveredSources.push(...candidate);
+          else discoveredSources.push(candidate);
+        }
+      }
+
+      // Normalize and register discovered sources
+      const registered: PluginSource[] = [];
+
+      for (let i = 0; i < discoveredSources.length; i++) {
+        const s = discoveredSources[i];
+
+        // If plugin returned something that looks like a Source object (duck-typing),
+        // try to create a proper Source instance if it's plain object (optional).
+        let sourceObj: any = s;
+        if (!(s instanceof Source) && typeof s === "object") {
+          // try to create Source instance if available fields exist
+          try {
+            sourceObj = new Source(s);
+            // copy over methods if plugin provided functions separately
+            Object.assign(sourceObj, s);
+          } catch (err) {
+            // fallback: keep the object as is and hope it matches Source interface
+            sourceObj = s;
+          }
+        }
+
+        // ensure it has id
+        const sourceId = (sourceObj && sourceObj.id) || `source_${pluginId}_${i}`;
+
+        // plugin-scoped map key to allow multiple sources per plugin
+        const mapKey = `${pluginId}:${sourceId}`;
+
+        const pluginSource: PluginSource = {
+          ...sourceObj,
+          id: sourceId,
+          pluginId,
+          manifest,
+        };
+
+        this.plugins.set(mapKey, pluginSource);
+        registered.push(pluginSource);
+      }
+
+      return registered;
+    } catch (err) {
+      console.error(`Failed to load plugin ${pluginId}:`, err);
+      throw err;
+    }
+>>>>>>> parent of 742dd0a (fix plugin loading)
   }
 
   private createSandboxForExecution(collector: any[]): PluginSandbox {
@@ -235,9 +382,6 @@ export class PluginManager {
         createSource: (params: any) => new Source(params),
       },
       registerSource: (s: any) => {
-        if (collector.length > 0) {
-          throw new Error("Only one source can be registered per plugin");
-        }
         collector.push(s);
       },
     };
@@ -329,7 +473,14 @@ export class PluginManager {
 
   async uninstallPlugin(pluginId: string): Promise<boolean> {
     try {
+<<<<<<< HEAD
       this.plugins.delete(pluginId);
+=======
+      // remove loaded plugin entries (all keys that start with pluginId:)
+      const keys = Array.from(this.plugins.keys()).filter(k => k.startsWith(`${pluginId}:`));
+      for (const k of keys) this.plugins.delete(k);
+
+>>>>>>> parent of 742dd0a (fix plugin loading)
       const manifests = await this.readManifest();
       const filtered = manifests.filter(m => m.id !== pluginId);
       await this.writeManifest(filtered);
@@ -360,8 +511,9 @@ export class PluginManager {
     return this.readManifest();
   }
 
-  getLoadedPlugin(pluginId: string): PluginSource | undefined {
-    return this.plugins.get(pluginId);
+  getLoadedPlugin(pluginKey: string): PluginSource | undefined {
+    // pluginKey is pluginId:sourceId
+    return this.plugins.get(pluginKey);
   }
 
   getAllLoadedPlugins(): PluginSource[] {
@@ -377,7 +529,14 @@ export class PluginManager {
     await this.savePluginLocally(pluginId, code);
     manifest.updatedAt = new Date().toISOString();
     await this.writeManifest(manifests);
+<<<<<<< HEAD
     this.plugins.delete(pluginId);
+=======
+    // reload
+    // remove old entries
+    const oldKeys = Array.from(this.plugins.keys()).filter(k => k.startsWith(`${pluginId}:`));
+    for (const k of oldKeys) this.plugins.delete(k);
+>>>>>>> parent of 742dd0a (fix plugin loading)
     return await this.loadPlugin(pluginId);
   }
 }

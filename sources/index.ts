@@ -42,24 +42,14 @@ class SourceManager {
     icon?: string;
   }): Promise<SourceInfo> {
     try {
-      const manifest = await pluginManager.installPlugin(pluginUrl, {
-        ...manifestInfo,
-        entryPoint: pluginUrl
-      });
-      
-      // Load the plugin to get the source
-      const sources = await pluginManager.loadPlugin(manifest.id);
-      
-      if (sources.length === 0) {
-        throw new Error('Plugin did not export any valid source');
-      }
+      const pluginSource = await pluginManager.installPlugin(pluginUrl, {...manifestInfo, entryPoint:pluginUrl});
       
       const sourceInfo: SourceInfo = {
-        name: sources[0].name || manifestInfo.name,
-        icon: sources[0].icon || manifestInfo.icon || '',
-        source: sources[0],
-        pluginId: manifest.id,
-        manifest: manifest,
+        name: pluginSource.name,
+        icon: pluginSource.icon,
+        source: pluginSource,
+        pluginId: pluginSource.pluginId,
+        manifest: pluginSource.manifest,
       };
       
       this.pluginSources.push(sourceInfo);
@@ -98,36 +88,21 @@ class SourceManager {
 
   async updatePluginSource(pluginId: string): Promise<SourceInfo> {
     try {
-      const updatedSources = await pluginManager.updatePlugin(pluginId);
-      
-      if (updatedSources.length === 0) {
-        throw new Error('Plugin update did not return any source');
-      }
+      const updatedPlugin = await pluginManager.updatePlugin(pluginId);
       
       // Update in our list
       const index = this.pluginSources.findIndex(s => s.pluginId === pluginId);
       if (index !== -1) {
         this.pluginSources[index] = {
-          name: updatedSources[0].name,
-          icon: updatedSources[0].icon,
-          source: updatedSources[0],
-          pluginId: updatedSources[0].pluginId,
-          manifest: updatedSources[0].manifest,
+          name: updatedPlugin.name,
+          icon: updatedPlugin.icon,
+          source: updatedPlugin,
+          pluginId: updatedPlugin.pluginId,
+          manifest: updatedPlugin.manifest,
         };
-        return this.pluginSources[index];
-      } else {
-        // If not found, add it
-        const sourceInfo: SourceInfo = {
-          name: updatedSources[0].name,
-          icon: updatedSources[0].icon,
-          source: updatedSources[0],
-          pluginId: updatedSources[0].pluginId,
-          manifest: updatedSources[0].manifest,
-        };
-        this.pluginSources.push(sourceInfo);
-        return sourceInfo;
       }
       
+      return this.pluginSources[index];
     } catch (error) {
       console.error('Failed to update plugin source:', error);
       throw error;
