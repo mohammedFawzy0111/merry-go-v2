@@ -173,6 +173,7 @@ export class PluginManager {
   }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   private validateSingleSource(pluginId: string, sources: any[]): void {
     if (sources.length > 1) {
       throw new Error(`Plugin ${pluginId} attempted to register multiple sources. Only one source per plugin is allowed.`);
@@ -208,6 +209,8 @@ export class PluginManager {
         sandbox.console.error("Plugin runtime error:", err);
         throw err;
 =======
+=======
+>>>>>>> parent of 742dd0a (fix plugin loading)
   // ---- execution (safer new Function usage) ----
   /**
    * Execute plugin code inside a light sandbox.
@@ -270,6 +273,9 @@ export class PluginManager {
       if (Array.from(this.plugins.keys()).some(k => k.startsWith(pluginId + ":"))) {
         // return loaded plugin sources for this plugin
         return Array.from(this.plugins.values()).filter(p => p.pluginId === pluginId);
+<<<<<<< HEAD
+>>>>>>> parent of 742dd0a (fix plugin loading)
+=======
 >>>>>>> parent of 742dd0a (fix plugin loading)
       }
     };
@@ -474,8 +480,11 @@ export class PluginManager {
   async uninstallPlugin(pluginId: string): Promise<boolean> {
     try {
 <<<<<<< HEAD
+<<<<<<< HEAD
       this.plugins.delete(pluginId);
 =======
+=======
+>>>>>>> parent of 742dd0a (fix plugin loading)
       // remove loaded plugin entries (all keys that start with pluginId:)
       const keys = Array.from(this.plugins.keys()).filter(k => k.startsWith(`${pluginId}:`));
       for (const k of keys) this.plugins.delete(k);
@@ -530,12 +539,18 @@ export class PluginManager {
     manifest.updatedAt = new Date().toISOString();
     await this.writeManifest(manifests);
 <<<<<<< HEAD
+<<<<<<< HEAD
     this.plugins.delete(pluginId);
 =======
+=======
+>>>>>>> parent of 742dd0a (fix plugin loading)
     // reload
     // remove old entries
     const oldKeys = Array.from(this.plugins.keys()).filter(k => k.startsWith(`${pluginId}:`));
     for (const k of oldKeys) this.plugins.delete(k);
+<<<<<<< HEAD
+>>>>>>> parent of 742dd0a (fix plugin loading)
+=======
 >>>>>>> parent of 742dd0a (fix plugin loading)
     return await this.loadPlugin(pluginId);
   }
