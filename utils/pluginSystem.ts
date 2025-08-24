@@ -4,6 +4,8 @@ import axios from "axios";
 import * as FileSystem from "expo-file-system";
 import "ses"; // SES runtime
 
+lockdown(); // hardens global objects for secure compartments
+
 export interface PluginManifest {
   id: string;
   name: string;
