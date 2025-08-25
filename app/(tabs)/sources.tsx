@@ -1,19 +1,19 @@
-// app/(tabs)/sources.tsx
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/contexts/settingProvider';
-import { sourceManager } from '@/sources';
+import { SourceInfo, sourceManager } from '@/sources';
 import { RepositoryPlugin, pluginManager } from '@/utils/pluginSystem';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, RefreshControl, StyleSheet, ToastAndroid, TouchableOpacity, View } from 'react-native';
 
 type SourceTab = 'installed' | 'available';
+type AvailablePlugin = RepositoryPlugin & { isInstalled?: boolean };
 
 export default function Sources() {
   const { colors } = useTheme();
   const router = useRouter();
-  const [installedPlugins, setInstalledPlugins] = useState<any[]>([]);
+  const [installedPlugins, setInstalledPlugins] = useState<SourceInfo[]>([]);
   const [availablePlugins, setAvailablePlugins] = useState<RepositoryPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,7 +28,17 @@ export default function Sources() {
 
       // Load available plugins from repository
       const available = await pluginManager.getAvailablePlugins();
-      setAvailablePlugins(available);
+      const installedPluginsIds = installed.map(p => p.pluginId);
+      const processedAvailable = available.map(plugin => ({
+        ...plugin,
+        isInstalled: installedPluginsIds.includes(plugin.id)
+      }));
+      processedAvailable.sort((a,b) => {
+        if (a.isInstalled && !b.isInstalled) return -1;
+        if (!a.isInstalled && b.isInstalled) return 1;
+        return 0;
+      });
+      setAvailablePlugins(processedAvailable);
     } catch (error) {
       console.error('Failed to load sources:', error);
       Alert.alert('Error', 'Failed to load plugins from repository');
@@ -56,7 +66,7 @@ export default function Sources() {
         icon: plugin.icon,
       });
       await loadSources(); // Reload to update the list
-      Alert.alert('Success', `${plugin.name} installed successfully!`);
+      ToastAndroid.show('Plugin installed', ToastAndroid.SHORT);
     } catch (error) {
       console.error('Failed to install plugin:', error);
       Alert.alert('Error', `Failed to install ${plugin.name}: ${error}`);
@@ -70,7 +80,7 @@ export default function Sources() {
       const success = await sourceManager.uninstallPluginSource(pluginId);
       if (success) {
         await loadSources(); // Reload to update the list
-        Alert.alert('Success', `${pluginName} uninstalled successfully!`);
+        ToastAndroid.show('Plugin uninstalled', ToastAndroid.SHORT);
       } else {
         Alert.alert('Error', `Failed to uninstall ${pluginName}`);
       }
@@ -117,10 +127,10 @@ export default function Sources() {
         </View>
         <TouchableOpacity 
           onPress={() => uninstallPlugin(item.pluginId, item.name)}
-          style={[styles.actionButton, { backgroundColor: colors.error }]}
+          style={[styles.actionButton, { backgroundColor: colors.error}]}
           disabled={installingId !== null}
         >
-          <ThemedText variant="accent" style={styles.actionButtonText}>
+          <ThemedText variant="accent" style={[styles.actionButtonText, {color:colors.text}]}>
             Uninstall
           </ThemedText>
         </TouchableOpacity>
@@ -128,7 +138,7 @@ export default function Sources() {
     </TouchableOpacity>
   );
 
-  const renderAvailableItem = ({ item }: { item: RepositoryPlugin }) => (
+  const renderAvailableItem = ({ item }: { item: AvailablePlugin }) => (
     <ThemedView variant="surface" style={styles.sourceItem}>
       <View style={styles.sourceHeader}>
         {item.icon && (
@@ -153,18 +163,18 @@ export default function Sources() {
         </View>
       </View>
       <TouchableOpacity 
-        onPress={() => installPlugin(item)}
+        onPress={() => !item.isInstalled && installPlugin(item)}
         style={[styles.actionButton, { 
-          backgroundColor: installingId === item.id ? colors.tint : colors.success,
-          opacity: installingId === item.id ? 0.7 : 1
+          backgroundColor: item.isInstalled ? colors.border : colors.success,
+          opacity: item.isInstalled ? 0.5 : 1
         }]}
-        disabled={installingId !== null}
+        disabled={installingId !== null || item.isInstalled}
       >
         {installingId === item.id ? (
           <ActivityIndicator size="small" color={colors.text} />
         ) : (
-          <ThemedText variant="accent" style={styles.actionButtonText}>
-            Install
+          <ThemedText variant="accent" style={[styles.actionButtonText,{color:colors.text}]}>
+            {item.isInstalled ? 'Installed' : 'Install'}
           </ThemedText>
         )}
       </TouchableOpacity>
