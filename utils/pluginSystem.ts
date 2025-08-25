@@ -208,16 +208,8 @@ export class PluginManager {
     moduleObj: any,
     exportsObj: any
   ): Promise<any> {
-    // AsyncFunction constructor trick
-    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-
     const wrapped = `
-      // Shadow dangerous globals
-      const globalThis = undefined, window = undefined, self = undefined;
-      const Function = undefined, eval = undefined;
-
       const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
-
       try {
         Object.freeze(Manga?.prototype);
         Object.freeze(Chapter?.prototype);
@@ -225,25 +217,22 @@ export class PluginManager {
       } catch(e) {}
 
       try {
-        // Run plugin inside async scope
-        await (async () => {
-          ${code}
-        })();
+        ${code}
       } catch (err) {
         pluginConsole?.error?.('Plugin runtime error:', err);
         throw err;
       }
 
-      // Return module.exports or exports.default
       if (module?.exports && Object.keys(module.exports).length) return module.exports;
       if (exports?.default !== undefined) return exports.default;
       return undefined;
     `;
 
+
     try {
-      const fn = new AsyncFunction("sandbox", "module", "exports", wrapped);
+      const fn = new Function("sandbox", "module", "exports", wrapped);
       const exec = () => fn(sandbox, moduleObj, exportsObj);
-      const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
+      const result = this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
       return result;
     } catch (error) {
       console.error("Plugin execution failed:", error);
