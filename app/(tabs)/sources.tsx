@@ -2,8 +2,8 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/contexts/settingProvider';
-import { pluginRepositoryService, RepositoryPlugin } from '@/services/pluginRepo';
 import { sourceManager } from '@/sources';
+import { RepositoryPlugin, pluginManager } from '@/utils/pluginSystem';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -27,7 +27,7 @@ export default function Sources() {
       setInstalledPlugins(installed);
 
       // Load available plugins from repository
-      const available = await pluginRepositoryService.getAvailablePlugins();
+      const available = await pluginManager.getAvailablePlugins();
       setAvailablePlugins(available);
     } catch (error) {
       console.error('Failed to load sources:', error);

@@ -3,6 +3,9 @@ import { Chapter, Manga, Source } from "@/utils/sourceModel";
 import axios from "axios";
 import * as FileSystem from "expo-file-system";
 
+const REPOSITORY_BASE_URL = "https://raw.githubusercontent.com/mohammedFawzy0111/merry-go-plugins/main/";
+const REMOTE_MANIFEST_URL = `${REPOSITORY_BASE_URL}manifest.json`;
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -11,6 +14,21 @@ export interface PluginManifest {
   entryPoint: string;
   installedAt: string;
   updatedAt?: string;
+}
+
+export interface RepositoryPlugin {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  icon?: string;
+  entryPoint: string;
+  minAppVersion?: string;
+  language?: string;
+}
+
+export interface PluginRepository {
+  plugins: RepositoryPlugin[];
 }
 
 export interface PluginSandbox {
@@ -73,12 +91,17 @@ export class PluginManager {
   }
 
   // ---- URL helpers ----
-  private normalizeRawGitHubUrl(url: string) {
-    // Accept both blob links and raw links
-    // blob example: https://github.com/user/repo/blob/main/path/file.js
+  private normalizePluginUrl(url: string): string {
+    // Handle relative URLs from repository
+    if (url.startsWith('/')) {
+      return `${REPOSITORY_BASE_URL}${url.substring(1)}`;
+    }
+    
+    // Handle GitHub blob URLs
     if (url.includes("github.com") && url.includes("/blob/")) {
       return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
     }
+    
     return url;
   }
 
@@ -93,7 +116,7 @@ export class PluginManager {
 
   // ---- fetch / save plugin code ----
   private async downloadPluginCode(url: string): Promise<string> {
-    const normalized = this.normalizeRawGitHubUrl(url);
+    const normalized = this.normalizePluginUrl(url);
     if (!this.isValidUrl(normalized)) {
       throw new Error("Invalid plugin URL");
     }
@@ -178,67 +201,55 @@ export class PluginManager {
     }
   }
 
-    // ---- execution (safer new Function usage) ----
-  /**
-   * Execute plugin code inside a light sandbox.
-   * Plugin code can:
-   *  - assign to module.exports
-   *  - assign exports.default
-   *  - call registerSource(...) which we inject into sandbox
-   *
-   * Returns the object from module.exports (if any) or exports.default or undefined.
-   */
-    private async executePluginSafely(
-  code: string,
-  sandbox: PluginSandbox,
-  moduleObj: any,
-  exportsObj: any
-): Promise<any> {
-  // AsyncFunction constructor trick
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  // ---- execution (safer new Function usage) ----
+  private async executePluginSafely(
+    code: string,
+    sandbox: PluginSandbox,
+    moduleObj: any,
+    exportsObj: any
+  ): Promise<any> {
+    // AsyncFunction constructor trick
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
-  const wrapped = `
-    // Shadow dangerous globals
-    const globalThis = undefined, window = undefined, self = undefined;
-    const Function = undefined, eval = undefined;
+    const wrapped = `
+      // Shadow dangerous globals
+      const globalThis = undefined, window = undefined, self = undefined;
+      const Function = undefined, eval = undefined;
 
-    const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
+      const { http, Manga, Chapter, Source, console: pluginConsole, utils, registerSource } = sandbox;
+
+      try {
+        Object.freeze(Manga?.prototype);
+        Object.freeze(Chapter?.prototype);
+        Object.freeze(Source?.prototype);
+      } catch(e) {}
+
+      try {
+        // Run plugin inside async scope
+        await (async () => {
+          ${code}
+        })();
+      } catch (err) {
+        pluginConsole?.error?.('Plugin runtime error:', err);
+        throw err;
+      }
+
+      // Return module.exports or exports.default
+      if (module?.exports && Object.keys(module.exports).length) return module.exports;
+      if (exports?.default !== undefined) return exports.default;
+      return undefined;
+    `;
 
     try {
-      Object.freeze(Manga?.prototype);
-      Object.freeze(Chapter?.prototype);
-      Object.freeze(Source?.prototype);
-    } catch(e) {}
-
-    try {
-      // Run plugin inside async scope
-      await (async () => {
-        ${code}
-      })();
-    } catch (err) {
-      pluginConsole?.error?.('Plugin runtime error:', err);
-      throw err;
+      const fn = new AsyncFunction("sandbox", "module", "exports", wrapped);
+      const exec = () => fn(sandbox, moduleObj, exportsObj);
+      const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
+      return result;
+    } catch (error) {
+      console.error("Plugin execution failed:", error);
+      throw error;
     }
-
-    // Return module.exports or exports.default
-    if (module?.exports && Object.keys(module.exports).length) return module.exports;
-    if (exports?.default !== undefined) return exports.default;
-    return undefined;
-  `;
-
-  try {
-    // ⬇️ create async function instead of normal one
-    const fn = new AsyncFunction("sandbox", "module", "exports", wrapped);
-    const exec = () => fn(sandbox, moduleObj, exportsObj);
-    const result = await this.runWithTimeout(exec, DEFAULT_EXEC_TIMEOUT);
-    return result;
-  } catch (error) {
-    console.error("Plugin execution failed:", error);
-    throw error;
   }
-}
-
-
 
   // ---- load plugin (core) ----
   async loadPlugin(pluginId: string): Promise<PluginSource[]> {
@@ -269,8 +280,6 @@ export class PluginManager {
       const execResult = await this.executePluginSafely(code, sandbox, pluginModule, pluginExports);
 
       // Determine sources that plugin produced:
-      // 1) If plugin used registerSource(), we have collected them
-      // 2) Else, check module.exports or exports.default for a Source or array of Source
       let discoveredSources: any[] = [];
 
       if (registeredSources.length > 0) {
@@ -278,7 +287,6 @@ export class PluginManager {
       } else {
         const candidate = execResult || pluginModule.exports || pluginExports.default || pluginExports;
         if (candidate) {
-          // accept single source or array
           if (Array.isArray(candidate)) discoveredSources.push(...candidate);
           else discoveredSources.push(candidate);
         }
@@ -294,7 +302,7 @@ export class PluginManager {
       // If we have exactly one source, process it
       let sourceObj: any = discoveredSources[0];
 
-      // Handle class constructors (if plugin exports a class rather than instance)
+      // Handle class constructors
       if (typeof sourceObj === 'function' && sourceObj.prototype instanceof Source) {
         try {
           sourceObj = new sourceObj();
@@ -304,16 +312,12 @@ export class PluginManager {
         }
       }
 
-      // If plugin returned something that looks like a Source object (duck-typing),
-      // try to create a proper Source instance if it's plain object (optional).
+      // Convert plain object to Source instance if needed
       if (!(sourceObj instanceof Source) && typeof sourceObj === "object") {
-        // try to create Source instance if available fields exist
         try {
           sourceObj = new Source(sourceObj);
-          // copy over methods if plugin provided functions separately
           Object.assign(sourceObj, discoveredSources[0]);
         } catch (err) {
-          // fallback: keep the object as is and hope it matches Source interface
           sourceObj = discoveredSources[0];
         }
       }
@@ -407,7 +411,6 @@ export class PluginManager {
       manifests.push(fullManifest);
       await this.writeManifest(manifests);
 
-      // return manifest (do not auto-load sources here)
       return fullManifest;
     } catch (err) {
       console.error("installPlugin failed:", err);
@@ -417,16 +420,12 @@ export class PluginManager {
 
   async uninstallPlugin(pluginId: string): Promise<boolean> {
     try {
-      // remove loaded plugin entry
       this.plugins.delete(pluginId);
-
       const manifests = await this.readManifest();
       const filtered = manifests.filter(m => m.id !== pluginId);
       await this.writeManifest(filtered);
-
       const pluginPath = `${this.pluginsDir}${pluginId}.js`;
       await FileSystem.deleteAsync(pluginPath, { idempotent: true });
-
       return true;
     } catch (err) {
       console.error("uninstallPlugin failed:", err);
@@ -469,9 +468,127 @@ export class PluginManager {
     await this.savePluginLocally(pluginId, code);
     manifest.updatedAt = new Date().toISOString();
     await this.writeManifest(manifests);
-    // remove old entry
     this.plugins.delete(pluginId);
     return await this.loadPlugin(pluginId);
+  }
+
+  // ---- Repository integration methods ----
+  
+  async getAvailablePlugins(): Promise<RepositoryPlugin[]> {
+    try {
+      const response = await axios.get<PluginRepository>(REMOTE_MANIFEST_URL, {
+        timeout: 60000,
+      });
+      
+      if (response.data && Array.isArray(response.data.plugins)) {
+        return response.data.plugins;
+      }
+      
+      console.warn('Invalid repository format:', response.data);
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch available plugins:', error);
+      return [];
+    }
+  }
+
+  async searchAvailablePlugins(query: string): Promise<RepositoryPlugin[]> {
+    const plugins = await this.getAvailablePlugins();
+    
+    return plugins.filter(plugin =>
+      plugin.name.toLowerCase().includes(query.toLowerCase()) ||
+      (plugin.description && plugin.description.toLowerCase().includes(query.toLowerCase()))
+    );
+  }
+
+  async getPluginFromRepository(pluginId: string): Promise<RepositoryPlugin | null> {
+    const plugins = await this.getAvailablePlugins();
+    return plugins.find(plugin => plugin.id === pluginId) || null;
+  }
+
+  async installPluginFromRepository(pluginId: string): Promise<PluginManifest> {
+    const plugin = await this.getPluginFromRepository(pluginId);
+    
+    if (!plugin) {
+      throw new Error(`Plugin with ID ${pluginId} not found in repository`);
+    }
+
+    return this.installPlugin(plugin.entryPoint, {
+      name: plugin.name,
+      version: plugin.version,
+      icon: plugin.icon,
+      entryPoint: plugin.entryPoint
+    });
+  }
+
+  async installPluginsFromRepository(pluginIds: string[]): Promise<PluginManifest[]> {
+    const results: PluginManifest[] = [];
+    
+    for (const pluginId of pluginIds) {
+      try {
+        const manifest = await this.installPluginFromRepository(pluginId);
+        results.push(manifest);
+      } catch (error) {
+        console.error(`Failed to install plugin ${pluginId}:`, error);
+      }
+    }
+    
+    return results;
+  }
+
+  async checkForUpdates(): Promise<{pluginId: string, currentVersion: string, availableVersion: string}[]> {
+    const installedPlugins = await this.getInstalledPlugins();
+    const availablePlugins = await this.getAvailablePlugins();
+    
+    const updates: {pluginId: string, currentVersion: string, availableVersion: string}[] = [];
+    
+    for (const installed of installedPlugins) {
+      const available = availablePlugins.find(p => p.name === installed.name);
+      
+      if (available && this.isNewerVersion(available.version, installed.version)) {
+        updates.push({
+          pluginId: installed.id,
+          currentVersion: installed.version,
+          availableVersion: available.version
+        });
+      }
+    }
+    
+    return updates;
+  }
+
+  private isNewerVersion(available: string, current: string): boolean {
+    const availableParts = available.split('.').map(Number);
+    const currentParts = current.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(availableParts.length, currentParts.length); i++) {
+      const availablePart = availableParts[i] || 0;
+      const currentPart = currentParts[i] || 0;
+      
+      if (availablePart > currentPart) return true;
+      if (availablePart < currentPart) return false;
+    }
+    
+    return false;
+  }
+
+  async updateAllPlugins(): Promise<PluginSource[]> {
+    const updates = await this.checkForUpdates();
+    const updated: PluginSource[] = [];
+    
+    for (const update of updates) {
+      try {
+        await this.uninstallPlugin(update.pluginId);
+        await this.installPluginFromRepository(update.pluginId);
+        const sources = await this.loadPlugin(update.pluginId);
+        updated.push(...sources);
+        console.log(`✅ Updated ${update.pluginId} from ${update.currentVersion} to ${update.availableVersion}`);
+      } catch (error) {
+        console.error(`❌ Failed to update ${update.pluginId}:`, error);
+      }
+    }
+    
+    return updated;
   }
 }
 
