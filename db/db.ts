@@ -1,4 +1,4 @@
-import { placeHolderSource, sources } from "@/sources";
+import { placeHolderSource, sourceManager } from "@/sources";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { open } from "react-native-quick-sqlite";
 
@@ -17,6 +17,15 @@ export interface Download {
 export interface Category{
   id: string;
   name: string;
+}
+
+export interface History {
+  mangaUrl: string;
+  mnangaTitle: string;
+  chapterUrl: string;
+  chapterNumber: number;
+  lastRead: string;
+  page: number;
 }
 
 const db = open({ name: "manga.db" });
@@ -72,6 +81,19 @@ export function initDb() {
     );
   `);
   db.execute(`INSERT OR IGNORE INTO categories (id, name) VALUES ('default', 'All');`);
+  
+  db.execute(`
+    CREATE TABLE IF NOT EXISTS history (
+      id TEXT PRIMARY KEY,
+      mangaUrl TEXT,
+      mangaTitle TEXT,
+      chapterUrl TEXT,
+      chapterNumber REAL,
+      lastRead TEXT,
+      page INTEGER
+    );
+  `);
+
 }
 
 // Add manga
@@ -105,7 +127,7 @@ export function getMangas(): Manga[] {
       imageUrl: row.imageUrl,
       lastChapter: row.lastChapter,
       lastUpdated: row.lastUpdated,
-      source: sources.find(s => s.name === row.source)?.source || placeHolderSource,
+      source: sourceManager.getSourceByName(row.source)?.source || placeHolderSource,
       data: JSON.parse(row.data),
       category: row.category,
   })
@@ -257,4 +279,55 @@ export async function reassignMangaCategory(oldCategoryId:string, newCategoryId:
   db.transaction((tx) => {
     tx.execute(`UPADATE mangas SET category = ? WHERE category = ?`,[newCategoryId,oldCategoryId]);
   })
+}
+
+// ADD TO HISTORY
+export async function addToHistroy(item:History): Promise<void>{
+  db.execute(`INSERT INTO histroy (mangaUrl, mangaTitle, chapterUrl, chapterNumber, lastRead, page) VALUES (?,?,?,?,?,?)`,
+      [
+      item.mangaUrl,
+      item.mnangaTitle,
+      item.chapterUrl,
+      item.chapterNumber,
+      item.lastRead,
+      item.page
+      ]
+  );
+}
+
+// delete history 
+export async function deleteHistroy(mangaUrl:string): Promise <void> {
+  db.execute(`DELETE FROM history WHERE mangaUrl = ?`,[mangaUrl]);
+}
+
+// update manga reading history
+export async function updateMangaHistory(mangaUrl:string, chapterUrl:string, chapterNumber:number, page: number, lastRead:string): Promise <void> {
+  db.execute(`
+    UPDATE history SET chapterUrl = ?, chapterNumber = ?, lastRead = ?, page = ? WHERE mangaUrl = ?
+  `,
+  [
+  chapterUrl,
+  chapterNumber,
+  lastRead,
+  page,
+  mangaUrl
+  ]
+  )
+}
+// get history
+export async function getHIstroy(): Promise<History[]> {
+  try{
+    const result = db.execute('SELECT * FROM history');
+    let parsed:History[] = [];
+    if(result.rows){
+      const arr = result.rows._array;
+      for(const history of arr){
+        parsed.push({ mangaUrl:history.mangaUrl, mnangaTitle: history.mangaTitle,chapterUrl: history.chapterUrl, chapterNumber: history.chapterNumber,lastRead:history.lastRead, page: history.page });
+      }
+    }
+    return parsed;
+  }catch{
+   console.error('failed to get history');
+   return [];
+  }
 }
