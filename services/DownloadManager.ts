@@ -1,7 +1,7 @@
 /* eslint-disable import/no-named-as-default-member */
 import { Download } from '@/db/db';
 import { NotificationService } from '@/services/notificationService';
-import { sources } from '@/sources';
+import { sourceManager } from '@/sources';
 import { useDownloadStore } from '@/store/downloadStore';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
@@ -25,7 +25,7 @@ const processDownload = async (download: Download) => {
   const { updateDownloadProgress } = useDownloadStore.getState();
   try {
     await updateDownloadProgress(download.id, 0, 'downloading');
-    const source = sources.find(s => download.chapterUrl.includes(s.source.baseUrl));
+    const source = sourceManager.getAllSources().find(s => download.chapterUrl.includes(s.source.baseUrl))
     if (!source) throw new Error(`Source not found for URL: ${download.chapterUrl}`);
 
     const chapterData = await source.source.fetchChapterDetails(download.chapterUrl);

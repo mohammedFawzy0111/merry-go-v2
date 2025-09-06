@@ -21,9 +21,10 @@ export interface Category{
 
 export interface History {
   mangaUrl: string;
-  mnangaTitle: string;
+  mangaTitle: string;
   chapterUrl: string;
   chapterNumber: number;
+  source: string;
   lastRead: string;
   page: number;
 }
@@ -45,7 +46,6 @@ export function initDb() {
       data TEXT
     );
   `);
-
   db.execute(`
     CREATE TABLE IF NOT EXISTS chapters (
       id TEXT PRIMARY KEY,
@@ -89,6 +89,7 @@ export function initDb() {
       mangaTitle TEXT,
       chapterUrl TEXT,
       chapterNumber REAL,
+      source TEXT,
       lastRead TEXT,
       page INTEGER
     );
@@ -283,12 +284,13 @@ export async function reassignMangaCategory(oldCategoryId:string, newCategoryId:
 
 // ADD TO HISTORY
 export async function addToHistroy(item:History): Promise<void>{
-  db.execute(`INSERT INTO histroy (mangaUrl, mangaTitle, chapterUrl, chapterNumber, lastRead, page) VALUES (?,?,?,?,?,?)`,
+  db.execute(`INSERT INTO histroy (mangaUrl, mangaTitle, chapterUrl, chapterNumber, source, lastRead, page) VALUES (?,?,?,?,?,?,?)`,
       [
       item.mangaUrl,
-      item.mnangaTitle,
+      item.mangaTitle,
       item.chapterUrl,
       item.chapterNumber,
+      item.source,
       item.lastRead,
       item.page
       ]
@@ -322,7 +324,7 @@ export async function getHIstroy(): Promise<History[]> {
     if(result.rows){
       const arr = result.rows._array;
       for(const history of arr){
-        parsed.push({ mangaUrl:history.mangaUrl, mnangaTitle: history.mangaTitle,chapterUrl: history.chapterUrl, chapterNumber: history.chapterNumber,lastRead:history.lastRead, page: history.page });
+        parsed.push({ mangaUrl:history.mangaUrl, mangaTitle: history.mangaTitle,chapterUrl: history.chapterUrl, chapterNumber: history.chapterNumber,source:history.source,lastRead:history.lastRead, page: history.page });
       }
     }
     return parsed;
