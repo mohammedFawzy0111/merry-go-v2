@@ -22,18 +22,13 @@ const { width } = Dimensions.get('window');
 type DownloadSection = 'all' | 'active' | 'completed' | 'errors';
 
 export default function Downloads() {
-  const { 
-    downloads, 
-    activeDownloads, 
-    pendingDownloads, 
-    completedDownloads, 
-    errorDownloads, 
-    loading, 
-    loadDownloads, 
-    removeDownload, 
-    retryDownload,
-    clearCompletedDownloads
-  } = useDownloadStore();
+  const downloads = useDownloadStore(s => s.downloads);
+  const loading = useDownloadStore(s => s.loading);
+  const { loadDownloads, removeDownload, retryDownload, clearCompletedDownloads } = useDownloadStore();
+  const activeDownloads = downloads.filter(d => d.status === 'downloading');
+  const pendingDownloads = downloads.filter(d => d.status === 'pending');
+  const completedDownloads = downloads.filter(d => d.status === 'done');
+  const errorDownloads = downloads.filter(d => d.status === 'error');
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const [activeSection, setActiveSection] = useState<DownloadSection>('all');

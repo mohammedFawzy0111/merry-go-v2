@@ -93,7 +93,7 @@ export class NotificationService {
             android: {
                 channelId: this.channelId,
                 pressAction: {
-                    id: 'defautl'
+                    id: 'default'
                 },
                 autoCancel: true,
             }

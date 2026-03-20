@@ -3,7 +3,6 @@ import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/settingProvider";
-import { initDb } from "@/db/db";
 import { NotificationService } from "@/services/notificationService";
 import { useCategoryStore } from '@/store/categoryStore';
 import { useDownloadStore } from "@/store/downloadStore";
@@ -40,10 +39,9 @@ export default function Home() {
     return Math.max(GAP, remainingSpace / 2);
   }, [screenWidth, numColumns]);
 
-  // initilization useEffect
+  // Initialization useEffect
   useEffect(() => {
     (async () => {
-      await initDb();
       await loadMangas();
       await loadCategories();
       await loadDownloads();

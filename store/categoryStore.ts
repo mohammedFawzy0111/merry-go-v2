@@ -17,7 +17,10 @@ export const useCategoryStore = create<CategoryState>()((set,get) => ({
 
     loadCategories: async () => {
         const categories = await getCategories();
-        set({categories: categories});
+        // Ensure the 'All' default category is always present even if DB is empty
+        const hasDefault = categories.some(c => c.id === 'default');
+        if (!hasDefault) categories.unshift({ id: 'default', name: 'All' });
+        set({ categories });
     },
 
     addCategory: async(name) => {

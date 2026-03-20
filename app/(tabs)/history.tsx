@@ -20,7 +20,7 @@ export default function HistoryScreen() {
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const router = useRouter();
-  const { history, loadHistory, removeHistroy } = useHistoryStore();
+  const { history, loadHistory, removeHistory } = useHistoryStore();
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearAllModal, setShowClearAllModal] = useState(false);
@@ -43,7 +43,7 @@ export default function HistoryScreen() {
 
   const confirmDelete = () => {
     if (selectedManga) {
-      removeHistroy(selectedManga.url);
+      removeHistory(selectedManga.url);
       setShowDeleteModal(false);
       setSelectedManga(null);
     }
@@ -56,7 +56,7 @@ export default function HistoryScreen() {
 
   const confirmClearAll = async () => {
     for (const item of history) {
-      await removeHistroy(item.mangaUrl);
+      await removeHistory(item.mangaUrl);
     }
     setShowClearAllModal(false);
   };

@@ -12,6 +12,7 @@ import { getCachedImage } from "@/utils/imageCache";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Image as ExpoImage } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -34,21 +35,23 @@ const ChapterCard = React.memo(
     onPressUrl,
     mangaUrl,
     mangaTitle,
+    downloadsByChapter,
   }: {
     chapter: Chapter;
     style?: ViewStyle;
     onPressUrl: (url: string) => void;
     mangaUrl: string;
     mangaTitle: string;
+    downloadsByChapter: Map<string, any>;
   }) => {
     const { colors } = useTheme();
     const {
-      downloads,
       addToDownloadQueue,
       removeDownload,
     } = useDownloadStore();
 
-    const chapterDownload = downloads.find(d => d.chapterUrl === chapter.url);
+    // O(1) map lookup instead of O(n) Array.find on every render
+    const chapterDownload = downloadsByChapter.get(chapter.url);
     const downloadStatus = chapterDownload?.status;
     const downloadProgress = chapterDownload?.progress || 0;
 
@@ -148,7 +151,7 @@ export default function MangaDetails() {
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const { mangas, addManga, removeManga, getMangaByUrl, } = useMangaStore();
-  const { addToDownloadQueue, downloads } = useDownloadStore();
+  const { addToDownloadQueue, downloads, downloadsByChapter, loadDownloads } = useDownloadStore();
   const { categories, loadCategories } = useCategoryStore()
   const router = useRouter();
   const source = sourceManager.getSourceByName(sourceName as string)?.source;
@@ -176,7 +179,7 @@ export default function MangaDetails() {
   const [selectedCategory, setSelectedCategory] = useState('default');
 
   const categoryOptions: DropdownOption<string>[] = useMemo(() => [
-    {value: 'defualt', label: 'All'},
+    {value: 'default', label: 'All'},
     ...categories.map(cat => ({
       value: cat.id,
       label: cat.name
@@ -259,21 +262,13 @@ export default function MangaDetails() {
   };
   }, [manga, manga.imageUrl]);
 
-  useEffect(() => {
-  // Load downloads when component mounts
-  const loadDownloads = async () => {
-    const { loadDownloads } = useDownloadStore.getState();
-    await loadDownloads();
-  };
-  
-  loadDownloads();
-}, []);
+  // loadDownloads is already called via the destructured hook above
 
   const handleGoToChapter = useCallback(
     (url: string) => {
       router.navigate({
         pathname: "/(manga)/readerScreen",
-        params: { chapterUrl: url, sourceName },
+        params: { chapterUrl: url, sourceName, mangaUrl: manga.url },
       });
     },
     [router, sourceName]
@@ -561,10 +556,11 @@ const handleDownloadAll = async () => {
           mangaUrl={manga.url}
           mangaTitle={manga.name}
           style={{ borderColor: colors.border }}
+          downloadsByChapter={downloadsByChapter}
         />
       );
     },
-    [handleGoToChapter, colors.border, manga.url, manga.name]
+    [handleGoToChapter, colors.border, manga.url, manga.name, downloadsByChapter]
   );
 
   const ITEM_HEIGHT = 64;

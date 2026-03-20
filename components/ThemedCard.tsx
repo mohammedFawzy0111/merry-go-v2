@@ -1,11 +1,13 @@
 // components/ThemedCard.tsx
+import { Image } from 'expo-image';
 import React from 'react';
-import { Image, ImageSourcePropType, ImageStyle, View as RNView, StyleSheet, TouchableOpacity } from 'react-native';
+import { ImageStyle, View as RNView, StyleSheet, TouchableOpacity } from 'react-native';
+import type { ImageSource } from 'expo-image';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 
 interface ThemedCardProps {
-    imageSource: ImageSourcePropType;
+    imageSource: ImageSource | string | number;
     title: string;
     imageStyle?: ImageStyle;
     cardStyle?: RNView['props']['style'];
@@ -32,9 +34,9 @@ export const ThemedCard: React.FC<ThemedCardProps> = ({
         style={[styles.card, cardStyle]}>
             <ThemedView variant="surface" style={{flex: 1}}>
                 <Image 
-                    source={imageSource} 
+                    source={imageSource as any} 
                     style={[styles.image, imageStyle]} 
-                    resizeMode="cover"
+                    contentFit="cover"
                 />
                 <ThemedView 
                     style={styles.titleContainer}
