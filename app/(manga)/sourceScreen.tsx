@@ -7,8 +7,15 @@ import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { sourceManager } from "@/sources";
 import { Manga, Source } from "@/utils/sourceModel";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, StyleSheet, TextInput, ToastAndroid } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  TextInput,
+  ToastAndroid,
+} from "react-native";
 
 type SortOption = "popular" | "latest";
 
@@ -23,11 +30,8 @@ const SortDropdown = ({
     { value: "popular", label: "Popular", icon: "flame" },
     { value: "latest", label: "Latest", icon: "time" },
   ];
-
   return (
-    <ThemedView
-      style={styles.dropdownContainer}
-    >
+    <ThemedView style={styles.dropdownContainer}>
       <Dropdown
         options={sortOptions}
         selectedValue={value}
@@ -46,27 +50,29 @@ export default function SourceScreen() {
 
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [mangas, setMangas] = useState<Manga[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>(initialTag ? `[${initialTag}]` : "")
-
-  const [offset,setOffset] = useState<number>(0);
-  const [hasMore, setHasMore] = useState<boolean>(true);
-  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>(
+    initialTag ? `[${initialTag}]` : ""
+  );
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const router = useRouter();
 
-  const screenWidth = Dimensions.get('window').width;
+  // Stable ref for the active fetch — lets us cancel stale requests without
+  // recreating the loadManga callback on every state change.
+  const fetchIdRef = useRef(0);
 
+  const screenWidth = Dimensions.get("window").width;
   const ITEM_MIN_WIDTH = 160;
   const ITEM_MARGIN = 8;
-
-  const numColumns = useMemo(()=>{
-    return Math.floor(screenWidth / (ITEM_MIN_WIDTH + ITEM_MARGIN * 2));
-  }, [screenWidth]);
-
+  const numColumns = useMemo(
+    () => Math.floor(screenWidth / (ITEM_MIN_WIDTH + ITEM_MARGIN * 2)),
+    [screenWidth]
+  );
 
   const source = sourceManager.getSourceByName(sourceName as string);
-
   if (!source) {
     return (
       <ThemedView variant="background" style={styles.container}>
@@ -74,126 +80,129 @@ export default function SourceScreen() {
       </ThemedView>
     );
   }
-
   const sourceModel: Source = source.source;
 
-  const loadManga = useCallback(async (loadMore: boolean = false) => {
-  if ((!loadMore && loading) || (loadMore && isLoadingMore)) return;
-  
-  let cancelled = false;
-  
-  if (loadMore) {
-    setIsLoadingMore(true);
-  } else {
-    setLoading(true);
-  }
-  
-  try {
-    const currentOffset = loadMore ? offset : 0;
-    let data: Manga[] = [];
+  // Core fetch function. `currentOffset` and `appendMode` are passed explicitly
+  // so the callback doesn't need to close over mutable state.
+  const fetchMangas = useCallback(
+    async (
+      query: string,
+      sort: SortOption,
+      currentOffset: number,
+      appendMode: boolean
+    ) => {
+      const myFetchId = ++fetchIdRef.current;
 
-    if (searchQuery.trim().length > 0) {
-      data = await sourceModel.fetchSearchResults(searchQuery, currentOffset);
-    } else {
-      data = sortBy === "latest"
-        ? await sourceModel.fetchRecentManga(currentOffset)
-        : await sourceModel.fetchPopularManga(currentOffset) ?? [];
-    }
+      if (appendMode) setIsLoadingMore(true);
+      else setLoading(true);
 
-    if (!cancelled) {
-      if (loadMore) {
-        setMangas(prev => [...prev, ...data]);
-      } else {
-        setMangas(data);
+      try {
+        let data: Manga[];
+        if (query.trim().length > 0) {
+          data = await sourceModel.fetchSearchResults(query, currentOffset);
+        } else {
+          data =
+            sort === "latest"
+              ? await sourceModel.fetchRecentManga(currentOffset)
+              : await sourceModel.fetchPopularManga(currentOffset);
+        }
+
+        // Discard result if a newer fetch has started
+        if (myFetchId !== fetchIdRef.current) return;
+
+        // Deduplicate
+        if (appendMode) {
+          setMangas((prev) => {
+            const seen = new Set(prev.map((m) => m.id));
+            return [...prev, ...data.filter((m) => !seen.has(m.id))];
+          });
+        } else {
+          const seen = new Set<string>();
+          setMangas(
+            data.filter((m) => {
+              if (seen.has(m.id)) return false;
+              seen.add(m.id);
+              return true;
+            })
+          );
+        }
+
+        setHasMore(data.length > 0);
+        setOffset(currentOffset + data.length);
+      } catch (err) {
+        if (myFetchId !== fetchIdRef.current) return;
+        console.error("Failed to load manga:", err);
+        ToastAndroid.show(`Failed to load manga: ${err}`, ToastAndroid.LONG);
+        if (!appendMode) {
+          setMangas([]);
+          setHasMore(false);
+        }
+      } finally {
+        if (myFetchId === fetchIdRef.current) {
+          if (appendMode) setIsLoadingMore(false);
+          else setLoading(false);
+        }
       }
-      setHasMore(data.length > 0);
-      setOffset(loadMore ? offset + data.length : data.length);
-    }
-  } catch (err) {
-    if (!cancelled) {
-      console.error('failed to to load manga:', err)
-      ToastAndroid.show(`Failed to load manga: ${err}`, ToastAndroid.LONG);
-      if (!loadMore) setMangas([]);
-      setHasMore(false);
-    }
-  } finally {
-    if (!cancelled) {
-      if (loadMore) {
-        setIsLoadingMore(false);
-      } else {
-        setLoading(false);
-      }
-    }
-  }
+    },
+    // sourceModel is stable as long as sourceName doesn't change
+    [sourceModel]
+  );
 
-  return () => {
-    cancelled = true;
-  };
-}, [offset, searchQuery, sortBy, sourceModel, loading, isLoadingMore]);
-
-useEffect(() => {
-  return () => {
-    // Reset all state when component unmounts
-    setMangas([]);
-    setOffset(0);
-    setSearchQuery(initialTag ? `[${initialTag}]` : "");
-  };
-}, []);
-  
-  useFocusEffect(
-    useCallback(() => {
-      // Reset state when screen comes into focus
+  // Reset and reload whenever search query or sort order changes (debounced).
+  useEffect(() => {
+    const timer = setTimeout(() => {
       setMangas([]);
       setOffset(0);
-      setSearchQuery(initialTag ? `[${initialTag}]` : "");
-      setSortBy("popular");
       setHasMore(true);
-      
-      return () => {};
+      fetchMangas(searchQuery, sortBy, 0, false);
+    }, 600); // 600 ms debounce — snappier than 1 s
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, sortBy, fetchMangas]);
+
+  // Reset when screen comes into focus (e.g. back-navigation from detail)
+  useFocusEffect(
+    useCallback(() => {
+      const tag = initialTag ? `[${initialTag}]` : "";
+      setSearchQuery(tag);
+      setSortBy("popular");
+      setMangas([]);
+      setOffset(0);
+      setHasMore(true);
     }, [initialTag])
-  );  
-
-  useEffect(() => {
-  const debounceTimer = setTimeout(() => {
-    loadManga(false);
-  }, 1000);
-
-  return () => {
-    clearTimeout(debounceTimer);
-  };
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, [searchQuery, sortBy]); // Only trigger when these change
+  );
 
   const handleEndReached = useCallback(() => {
-  if (!isLoadingMore && hasMore && !loading) {
-    loadManga(true);
-  }
-}, [isLoadingMore, hasMore, loading, loadManga]);
+    if (!isLoadingMore && hasMore && !loading) {
+      fetchMangas(searchQuery, sortBy, offset, true);
+    }
+  }, [isLoadingMore, hasMore, loading, searchQuery, sortBy, offset, fetchMangas]);
 
-  // Loading footer component
-  const renderFooter = () => {
-    if (!isLoadingMore) return null;
-    return (
+  const renderFooter = () =>
+    isLoadingMore ? (
       <ThemedView style={{ padding: 20 }}>
         <ActivityIndicator size="small" />
       </ThemedView>
-    );
-  };
+    ) : null;
 
   return (
     <ThemedView variant="background" style={styles.container}>
       <ThemedView variant="surface" style={styles.header}>
-        <TextInput 
-          style={[styles.searchBar,{ backgroundColor: colors.bg, fontSize: sizes.text, color: colors.text }]}
-          placeholder="search"
+        <TextInput
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: colors.bg,
+              fontSize: sizes.text,
+              color: colors.text,
+            },
+          ]}
+          placeholder="Search…"
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <SortDropdown
-          value={sortBy}
-          onChange={setSortBy}
-        />
+        <SortDropdown value={sortBy} onChange={setSortBy} />
       </ThemedView>
 
       {loading ? (
@@ -209,14 +218,14 @@ useEffect(() => {
                   : require("@/assets/images/placeholder.png")
               }
               title={item.name}
-              cardStyle={[styles.card]}
+              cardStyle={styles.card}
               titleVariant="default"
-              onPress={() => {
+              onPress={() =>
                 router.navigate({
                   pathname: "/(manga)/mangaDetail",
-                  params: { mangaUrl: item.url, sourceName}
+                  params: { mangaUrl: item.url, sourceName },
                 })
-              }}
+              }
             />
           )}
           keyExtractor={(item) => item.id}
@@ -225,8 +234,13 @@ useEffect(() => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           onEndReached={handleEndReached}
-          onEndReachedThreshold={0.1}
+          onEndReachedThreshold={0.2}
           ListFooterComponent={renderFooter}
+          // Performance
+          removeClippedSubviews
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={8}
         />
       )}
     </ThemedView>
@@ -234,37 +248,21 @@ useEffect(() => {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
+  container: { flex: 1, padding: 16 },
   header: {
     marginBottom: 20,
     padding: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
-  listContent: {
-    paddingBottom: 16,
-  },
+  listContent: { paddingBottom: 16 },
   columnWrapper: {
     justifyContent: "space-evenly",
     marginBottom: 16,
     gap: 16,
   },
-  card: {
-    minWidth: 160,
-    aspectRatio: 0.7,
-  },
-  
-  dropdownContainer: {
-    flexShrink:1,
-    maxWidth: "20%",
-  },
-  searchBar: {
-    flex: 1,
-    borderRadius: 8,
-    padding: 12,
-  },
+  card: { minWidth: 160, aspectRatio: 0.7 },
+  dropdownContainer: { flexShrink: 1, maxWidth: "20%" },
+  searchBar: { flex: 1, borderRadius: 8, padding: 12 },
 });

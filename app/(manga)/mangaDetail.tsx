@@ -7,18 +7,16 @@ import { placeHolderSource, sourceManager } from "@/sources";
 import { useCategoryStore } from "@/store/categoryStore";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useMangaStore } from "@/store/mangaStore";
-import { formatDateString } from "@/utils/fomatDateString";
-import { getCachedImage } from "@/utils/imageCache";
+import { formatDateString } from "@/utils/formatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image as ExpoImage } from 'expo-image';
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   StyleSheet,
   ToastAndroid,
@@ -150,11 +148,14 @@ export default function MangaDetails() {
   const { mangaUrl, sourceName } = useLocalSearchParams();
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const { mangas, addManga, removeManga, getMangaByUrl, } = useMangaStore();
+  const { mangas, addManga, removeManga, getMangaByUrl } = useMangaStore();
   const { addToDownloadQueue, downloads, downloadsByChapter, loadDownloads } = useDownloadStore();
-  const { categories, loadCategories } = useCategoryStore()
+  const { categories, loadCategories } = useCategoryStore();
   const router = useRouter();
   const source = sourceManager.getSourceByName(sourceName as string)?.source;
+  // Track whether this manga url has been fetched this mount so adding to library
+  // doesn't re-trigger a network fetch.
+  const hasFetchedRef = useRef(false);
 
   const [manga, setManga] = useState<Manga>(
     new Manga({
@@ -170,7 +171,6 @@ export default function MangaDetails() {
     })
   );
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
-  const [cachedImageUri, setCachedImageUri] = useState<string|null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
@@ -195,31 +195,21 @@ export default function MangaDetails() {
 
   useEffect(() => {
     let cancelled = false;
+    hasFetchedRef.current = false;
 
     const loadMangaData = async () => {
       setLoading(true);
       try {
-        // check for the manga in the store first
         const existingManga = await getMangaByUrl(mangaUrl as string);
-        if(existingManga){
-          if (!cancelled) {
-            setManga(existingManga);
-            setLoading(false);
-          }
+        if (existingManga) {
+          if (!cancelled) { setManga(existingManga); hasFetchedRef.current = true; }
           return;
         }
-
-        // if not in store fetch from the source
         if (!source) return;
         const data = await source.fetchMangaDetails(mangaUrl as string);
-        if (!cancelled) {
-          setManga(data)
-        };
+        if (!cancelled) { setManga(data); hasFetchedRef.current = true; }
       } catch (error) {
-        ToastAndroid.show(
-          `failded to load manga: ${error}`,
-          ToastAndroid.LONG
-        );
+        ToastAndroid.show(`Failed to load manga: ${error}`, ToastAndroid.LONG);
         console.error(`Error fetching ${mangaUrl} manga:`, error);
       } finally {
         if (!cancelled) setLoading(false);
@@ -227,40 +217,14 @@ export default function MangaDetails() {
     };
 
     loadMangaData();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
+  // Only re-fetch when the URL or source itself changes — NOT when mangas changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, mangaUrl, mangas]);
+  }, [source, mangaUrl]);
 
   useEffect(() => {
     setIsBookmarked(mangas.some((item) => item.url === manga.url));
   }, [mangas, manga.url]);
-
-  useEffect(()=> {
-    let isMounted = true;
-
-    const cacheImage = async () => {
-      if(!manga.imageUrl) return;
-      try {
-        const uri = await getCachedImage(manga.imageUrl);
-        if(isMounted){
-          setCachedImageUri(uri);
-        }
-      }catch (error){
-        console.error('Error caching image:', error);
-        if (isMounted) {
-          setCachedImageUri(manga.imageUrl);
-        }
-      }
-    };
-
-    cacheImage();
-
-    return () => {
-    isMounted = false;
-  };
-  }, [manga, manga.imageUrl]);
 
   // loadDownloads is already called via the destructured hook above
 
@@ -315,22 +279,12 @@ const onRefresh = useCallback(async () => {
       if (!source) return;
       const data = await source.fetchMangaDetails(mangaUrl as string);
       setManga(data);
-      
-      // Refresh the image cache
-      if (data.imageUrl) {
-        const uri = await getCachedImage(data.imageUrl);
-        setCachedImageUri(uri);
-      }
     } catch (error) {
-      ToastAndroid.show(
-        `Failed to refresh manga: ${error}`,
-        ToastAndroid.LONG
-      );
-      console.error(`Error refreshing ${mangaUrl} manga:`, error);
+      ToastAndroid.show(`Failed to refresh manga: ${error}`, ToastAndroid.LONG);
     } finally {
       setRefreshing(false);
     }
-}, [source, mangaUrl,]);
+}, [source, mangaUrl]);
 
 const handleDownloadAll = async () => {
   try {
@@ -348,8 +302,14 @@ const handleDownloadAll = async () => {
 };
 
   const displayedChapters = useMemo(() => {
-    if (!isReversed) return manga.chapters;
-    return [...manga.chapters].reverse();
+    // Deduplicate by url first (sources occasionally return the same chapter twice)
+    const seen = new Set<string>();
+    const unique = manga.chapters.filter(ch => {
+      if (seen.has(ch.url)) return false;
+      seen.add(ch.url);
+      return true;
+    });
+    return isReversed ? [...unique].reverse() : unique;
   }, [manga.chapters, isReversed]);
 
   const renderHeader = useCallback(() => {
@@ -357,16 +317,15 @@ const handleDownloadAll = async () => {
       <ThemedView>
         <ThemedView variant="surface" style={styles.head}>
           <View style={styles.coverContainer}>
-            <Image
+            <ExpoImage
               source={
-                cachedImageUri
-                ? { uri: cachedImageUri }
-                : manga.imageUrl
-                ? { uri: manga.imageUrl }
-                : require("@/assets/images/placeholder.png")
+                manga.imageUrl
+                  ? { uri: manga.imageUrl }
+                  : require("@/assets/images/placeholder.png")
               }
               style={styles.cover}
-              resizeMode="cover"
+              contentFit="cover"
+              cachePolicy="disk"
             />
           </View>
 
@@ -497,7 +456,7 @@ const handleDownloadAll = async () => {
             <FlatList
               data={manga.data.tags}
               horizontal
-              keyExtractor={(_, i) => `tag-${i}`}
+              keyExtractor={(item) => `tag-${item}`}
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled" 
               renderItem={({ item }) => (

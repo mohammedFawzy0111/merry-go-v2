@@ -19,7 +19,6 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { ZoomableView } from "@/components/ZoomableView";
 import { useFontSize, useReadingMode, useTheme } from "@/contexts/settingProvider";
-import { addToHistory, updateHistory } from "@/db/db";
 import { sourceManager } from "@/sources";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useHistoryStore } from "@/store/historyStore";
@@ -162,7 +161,7 @@ export default function ReaderScreen() {
 
   const source = sourceManager.getSourceByName(sourceName)?.source;
   const { loadDownloads, getDownloadByChapter } = useDownloadStore();
-  const { addToHistory: storeAddHistory, updateHistroy } = useHistoryStore();
+  const { addToHistory: storeAddHistory, updateHistory: storeUpdateHistory } = useHistoryStore();
 
   // ---- chapter state ----
   const [chapter, setChapter] = useState<Chapter | null>(null);
@@ -346,7 +345,7 @@ export default function ReaderScreen() {
           await storeAddHistory(historyItem);
         } catch {
           // If insert fails, try updating
-          await updateHistroy(
+          await storeUpdateHistory(
             chapter.manga,
             chapter.url,
             chapter.number,
@@ -356,7 +355,7 @@ export default function ReaderScreen() {
         }
       }, 800);
     },
-    [chapter, sourceName, storeAddHistory, updateHistroy]
+    [chapter, sourceName, storeAddHistory, storeUpdateHistory]
   );
 
   // ---------------------------------------------------------------------------

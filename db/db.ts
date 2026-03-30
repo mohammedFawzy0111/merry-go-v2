@@ -404,7 +404,7 @@ export async function reassignMangaCategory(
 
 /** Insert a new history record. Uses mangaUrl as the logical key. */
 export async function addToHistory(item: History): Promise<void> {
-  const id = `history_${item.mangaUrl}_${Date.now()}`;
+  const id = `history_${item.mangaUrl}`;
   db.execute(
     `INSERT OR REPLACE INTO history (id, mangaUrl, mangaTitle, chapterUrl, chapterNumber, source, lastRead, page)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

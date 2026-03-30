@@ -32,21 +32,38 @@ export const useMangaStore = create<MangaStore>(
     },
 
     addManga: async (manga) => {
-      addManga(manga);
-      if(manga.chapters && manga.chapters.length > 0){
-        addChapters(manga.chapters)
-      }
+      // Optimistic: add to UI immediately
       set((state) => ({
         mangas: [...state.mangas, manga],
-        chapters: {...state.chapters, [manga.url]: manga.chapters}
+        chapters: { ...state.chapters, [manga.url]: manga.chapters ?? [] }
       }));
+      try {
+        addManga(manga);
+        const chapters = manga.chapters ?? [];
+        if (chapters.length > 0) addChapters(chapters);
+      } catch (error) {
+        // Rollback on failure
+        set((state) => ({
+          mangas: state.mangas.filter(m => m.url !== manga.url),
+        }));
+        throw error;
+      }
     },
 
     removeManga: async (mangaUrl) => {
-      deleteManga(mangaUrl);
+      // Snapshot for rollback
+      const snapshot = get().mangas;
+      // Optimistic: remove from UI immediately
       set((state) => ({
         mangas: state.mangas.filter(m => m.url !== mangaUrl)
       }));
+      try {
+        deleteManga(mangaUrl);
+      } catch (error) {
+        // Rollback on failure
+        set({ mangas: snapshot });
+        throw error;
+      }
     },
 
     getMangaByUrl: async (mangaUrl) => {

@@ -3,12 +3,10 @@ import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/contexts/settingProvider";
-import { NotificationService } from "@/services/notificationService";
 import { useCategoryStore } from '@/store/categoryStore';
 import { useDownloadStore } from "@/store/downloadStore";
 import { useMangaStore } from '@/store/mangaStore';
 import { MaterialIcons } from '@expo/vector-icons';
-import notifee from '@notifee/react-native';
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Dimensions, FlatList, StyleSheet, TouchableOpacity } from "react-native";
@@ -46,16 +44,10 @@ export default function Home() {
       await loadCategories();
       await loadDownloads();
     })();
-
-    const initializeNotification = async () => {
-      await NotificationService.initialize();
-      await notifee.requestPermission();
-    }
-
-    initializeNotification();
   }, []);
 
   const filteredMangas = useMemo(() => {
+    if (activeCategory === 'default') return mangas;
     return mangas.filter(manga => manga.category === activeCategory);
   }, [mangas, activeCategory]);
 

@@ -13,7 +13,7 @@ import {
   RefreshControl,
   View,
 } from "react-native";
-import { formatDateString } from "@/utils/fomatDateString";
+import { formatDateString } from "@/utils/formatDateString";
 import { History} from "@/db/db";
 
 export default function HistoryScreen() {

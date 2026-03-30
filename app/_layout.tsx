@@ -1,17 +1,30 @@
 /**
  * app/_layout.tsx
  *
- * Root layout.
- * - Initialises the SQLite database BEFORE any screen renders.
- * - Wraps the entire app in SettingsProvider.
- * - Renders the warm night-mode overlay above all content.
+ * Root layout — runs before any screen renders.
+ *
+ * Startup sequence (synchronous-first, then async):
+ *  1. initDb()             — SQLite tables, must be sync and first
+ *  2. NotificationService  — channel creation; must happen before any
+ *                            download can fire a notification
+ *  3. SettingsProvider     — wraps the whole tree
+ *  4. BlueLightOverlay     — rendered above everything, pointer-events none
  */
 
 import { SettingsProvider, useNightReading } from "@/contexts/settingProvider";
 import { initDb } from "@/db/db";
+import { NotificationService } from "@/services/notificationService";
 import { Stack } from "expo-router";
-import { useEffect } from "react";
+import notifee from "@notifee/react-native";
+import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+
+// Run these synchronously/eagerly at module load — before React renders anything.
+// initDb() is synchronous under the hood (quick-sqlite). Doing it here (rather
+// than in a useEffect) guarantees tables exist even if a screen tries to query
+// them during its first render cycle.
+initDb();
 
 function BlueLightOverlay() {
   const { nightReadingMode } = useNightReading();
@@ -20,16 +33,35 @@ function BlueLightOverlay() {
 }
 
 function AppInit() {
+  // Track whether we've already initialised so StrictMode double-invocation
+  // doesn't register the foreground event listener twice.
+  const initialised = useRef(false);
+
   useEffect(() => {
-    // initDb is synchronous under the hood; calling it here ensures tables
-    // exist before any tab screen mounts and tries to query them.
-    initDb();
+    if (initialised.current) return;
+    initialised.current = true;
+
+    (async () => {
+      try {
+        // Create the notification channel and attach the foreground event
+        // listener as early as possible — before any download can start.
+        await NotificationService.initialize();
+        // Request permission (Android 13+). Non-blocking: the app works fine
+        // whether or not the user grants it.
+        await notifee.requestPermission();
+      } catch (err) {
+        // Never crash the app over notification setup failure.
+        console.warn("Notification init failed:", err);
+      }
+    })();
   }, []);
+
   return null;
 }
 
 export default function RootLayout() {
   return (
+    <GestureHandlerRootView style={{flex:1}}>
     <SettingsProvider>
       <AppInit />
       <BlueLightOverlay />
@@ -38,6 +70,7 @@ export default function RootLayout() {
         <Stack.Screen name="(manga)" options={{ headerShown: false }} />
       </Stack>
     </SettingsProvider>
+    </GestureHandlerRootView>
   );
 }
 

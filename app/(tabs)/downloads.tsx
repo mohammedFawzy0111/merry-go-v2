@@ -68,7 +68,7 @@ export default function Downloads() {
     if (selectedDownload) {
       // Delete files first
       try {
-        const downloadDir = `${FileSystem.documentDirectory}downloads/${selectedDownload.id}/`;
+        const downloadDir = selectedDownload.localPath;
         await FileSystem.deleteAsync(downloadDir, { idempotent: true });
       } catch (error) {
         console.log('Error deleting files:', error);

@@ -12,8 +12,8 @@ interface HistoryStore {
   history: History[];
   loadHistory: () => Promise<void>;
   addToHistory: (item: History) => Promise<void>;
-  removeHistroy: (mangaUrl: string) => Promise<void>;
-  updateHistroy: (
+  removeHistory: (mangaUrl: string) => Promise<void>;
+  updateHistory: (
     mangaUrl: string,
     chapterUrl: string,
     chapterNumber: number,
@@ -32,28 +32,35 @@ export const useHistoryStore = create<HistoryStore>()((set, get) => ({
 
   addToHistory: async (item: History) => {
     await addToHistory(item);
-    // Replace existing entry for the same manga if present, otherwise append
     set((state) => {
       const filtered = state.history.filter((h) => h.mangaUrl !== item.mangaUrl);
       return { history: [item, ...filtered] };
     });
   },
 
-  removeHistroy: async (mangaUrl: string) => {
+  removeHistory: async (mangaUrl: string) => {
     await deleteHistory(mangaUrl);
     set((state) => ({
       history: state.history.filter((h) => h.mangaUrl !== mangaUrl),
     }));
   },
 
-  updateHistroy: async (
+  updateHistory: async (
     mangaUrl: string,
     chapterUrl: string,
     chapterNumber: number,
     lastRead: string,
     page: number
   ) => {
+    // argument order matches db.ts: (mangaUrl, chapterUrl, chapterNumber, page, lastRead)
     await updateHistory(mangaUrl, chapterUrl, chapterNumber, page, lastRead);
-    await get().loadHistory();
+    // Optimistic update in memory — avoids a full DB round-trip
+    set((state) => ({
+      history: state.history.map((h) =>
+        h.mangaUrl === mangaUrl
+          ? { ...h, chapterUrl, chapterNumber, lastRead, page }
+          : h
+      ),
+    }));
   },
 }));
