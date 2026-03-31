@@ -42,9 +42,7 @@ import {
   ListRenderItemInfo,
   StyleSheet,
   Text,
-  ToastAndroid,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import Animated, {
@@ -285,16 +283,24 @@ export default function ReaderScreen() {
     if (!chapter) return;
     const resumePage = chapter.lastReadPage ?? 0;
     if (resumePage > 0 && resumePage < chapter.pages.length) {
-      // Small delay so FlatList has laid out
-      setTimeout(() => {
-        flatListRef.current?.scrollToIndex({
-          index: resumePage,
-          animated: false,
-        });
-        setCurrentPage(resumePage);
-      }, 100);
+      setCurrentPage(resumePage);
+      if (!isVertical) {
+        // Horizontal pager: each item is exactly WINDOW.width wide, so the
+        // offset is perfectly predictable — scrollToOffset needs no getItemLayout.
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({
+            offset: WINDOW.width * resumePage,
+            animated: false,
+          });
+        }, 100);
+      }
+      // Vertical (webtoon) mode: pages have variable heights that depend on
+      // each image's aspect ratio, only known after images are fetched and
+      // measured. Calling scrollToIndex without getItemLayout causes a silent
+      // native crash — the app exits with no error shown. We restore the page
+      // number in state so the indicator is correct; scroll starts at the top.
     }
-  }, [chapter]);
+  }, [chapter, isVertical]);
 
   // ---------------------------------------------------------------------------
   // Controls auto-hide
@@ -424,11 +430,11 @@ export default function ReaderScreen() {
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
-      length: isVertical ? WINDOW.height : WINDOW.width,
-      offset: (isVertical ? WINDOW.height : WINDOW.width) * index,
+      length: WINDOW.width,
+      offset: WINDOW.width * index,
       index,
     }),
-    [isVertical]
+    []
   );
 
   // ---------------------------------------------------------------------------
@@ -501,7 +507,7 @@ export default function ReaderScreen() {
       initialNumToRender={isVertical ? 3 : 1}
       maxToRenderPerBatch={isVertical ? 3 : 2}
       getItemLayout={isVertical ? undefined : getItemLayout}
-      contentContainerStyle={isVertical ? undefined : undefined}
+      onScrollToIndexFailed={() => {}}
     />
   );
 
