@@ -1,18 +1,9 @@
 /**
  * readerScreen.tsx
  *
- * Full-featured manga / manhwa reader inspired by Tachiyomi.
- *
- * Features:
- *  - Three reading modes: vertical scroll (webtoon), LTR pager, RTL pager
- *  - Per-page zoom via pinch & double-tap (vertical mode wraps each page)
- *  - Auto-hide overlay controls (tap to toggle)
- *  - Animated page-number indicator
- *  - Resume from last-read page
- *  - Next / previous chapter navigation
- *  - Offline-first: reads from downloaded files when available
- *  - Saves reading progress to history on every page change
- *  - Night-mode aware (handled by the global overlay in _layout.tsx)
+ * Full-featured manga / manhwa reader.
+ * Hardened against silent crashes with try/catch around every async path
+ * and verbose debug logging (search "🔍" in Metro to trace issues).
  */
 
 import { ThemedText } from "@/components/ThemedText";
@@ -39,6 +30,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Image as RNImage,
   ListRenderItemInfo,
   StyleSheet,
   Text,
@@ -48,9 +40,6 @@ import {
 import Animated, {
   FadeIn,
   FadeOut,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -59,23 +48,29 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // ---------------------------------------------------------------------------
 
 const WINDOW = Dimensions.get("window");
-/** Controls auto-hide delay in milliseconds. */
 const CONTROLS_HIDE_DELAY = 4000;
-/** Blurhash placeholder shown while images load. */
 const PLACEHOLDER_BLURHASH = "L6PZfSjE.AyE_3t7t7R**0o#DgR4";
+const DEBUG = __DEV__; // flip to false to silence logs in production
+
+function log(...args: any[]) {
+  if (DEBUG) console.log("🔍 [Reader]", ...args);
+}
+function warn(...args: any[]) {
+  if (DEBUG) console.warn("⚠️ [Reader]", ...args);
+}
+function err(...args: any[]) {
+  console.error("❌ [Reader]", ...args);
+}
 
 // ---------------------------------------------------------------------------
-// Single page component
+// Page component
 // ---------------------------------------------------------------------------
 
 type PageProps = {
   uri: string;
-  /** width of the screen — passed in so the component never calls Dimensions itself */
   screenWidth: number;
   isVertical: boolean;
-  /** called when this page's ZoomableView reports a zoom-state change */
   onZoomChange?: (zoomed: boolean) => void;
-  /** called on a single tap (toggle controls) */
   onTap?: () => void;
 };
 
@@ -86,23 +81,34 @@ const Page = React.memo(function Page({
   onZoomChange,
   onTap,
 }: PageProps) {
-  const [aspectRatio, setAspectRatio] = useState(2 / 3); // sensible manga default
+  const [aspectRatio, setAspectRatio] = useState(2 / 3);
 
   useEffect(() => {
-    // Derive true aspect ratio from the image so tall webtoon pages render fully
+    if (!uri) return;
+    let cancelled = false;
+
+    // Prefetch then measure — wrapped in try/catch so a bad URI never kills
+    // the whole reader.
     Image.prefetch(uri)
       .then(() => {
-        // expo-image does not expose getSize, use RN's Image
-        const { Image: RNImage } = require("react-native");
+        if (cancelled) return;
         RNImage.getSize(
           uri,
           (w: number, h: number) => {
-            if (w > 0 && h > 0) setAspectRatio(w / h);
+            if (!cancelled && w > 0 && h > 0) {
+              setAspectRatio(w / h);
+            }
           },
-          () => {}
+          (e: any) => {
+            warn("getSize failed for", uri, e);
+          }
         );
       })
-      .catch(() => {});
+      .catch((e) => {
+        warn("prefetch failed for", uri, e);
+      });
+
+    return () => { cancelled = true; };
   }, [uri]);
 
   const imageStyle = isVertical
@@ -110,7 +116,6 @@ const Page = React.memo(function Page({
     : { width: screenWidth, height: WINDOW.height };
 
   if (isVertical) {
-    // Vertical (webtoon) mode: each page is individually zoomable
     return (
       <ZoomableView onZoomChange={onZoomChange} onSingleTap={onTap}>
         <Image
@@ -124,10 +129,16 @@ const Page = React.memo(function Page({
     );
   }
 
-  // Pager mode: the whole FlatList is wrapped in a ZoomableView (see below),
-  // so individual pages are plain images.
   return (
-    <View style={{ width: screenWidth, height: WINDOW.height, justifyContent: "center", alignItems: "center", backgroundColor: "black" }}>
+    <View
+      style={{
+        width: screenWidth,
+        height: WINDOW.height,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "black",
+      }}
+    >
       <Image
         source={{ uri }}
         style={imageStyle}
@@ -140,16 +151,21 @@ const Page = React.memo(function Page({
 });
 
 // ---------------------------------------------------------------------------
-// Main reader screen
+// Main screen
 // ---------------------------------------------------------------------------
 
 export default function ReaderScreen() {
-  const { chapterUrl, sourceName, chapterList: rawChapterList } =
-    useLocalSearchParams<{
-      chapterUrl: string;
-      sourceName: string;
-      chapterList?: string; // JSON-serialised Chapter[] passed from detail screen
-    }>();
+  const {
+    chapterUrl,
+    sourceName,
+    chapterList: rawChapterList,
+  } = useLocalSearchParams<{
+    chapterUrl: string;
+    sourceName: string;
+    chapterList?: string;
+  }>();
+
+  log("mount — chapterUrl:", chapterUrl, "source:", sourceName);
 
   const { colors } = useTheme();
   const { sizes } = useFontSize();
@@ -159,41 +175,36 @@ export default function ReaderScreen() {
 
   const source = sourceManager.getSourceByName(sourceName)?.source;
   const { loadDownloads, getDownloadByChapter } = useDownloadStore();
-  const { addToHistory: storeAddHistory, updateHistory: storeUpdateHistory } = useHistoryStore();
+  const { addToHistory: storeAddHistory, updateHistory: storeUpdateHistory } =
+    useHistoryStore();
 
-  // ---- chapter state ----
+  // ---- state ----
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // ---- UI state ----
   const [controlsVisible, setControlsVisible] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressSaveTimer = useRef<ReturnType<typeof setTimeout>| null>(null);
+  const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ---- derived values ----
+  // ---- derived ----
   const isVertical = readingMode === "vertical";
   const isRTL = readingMode === "rtl";
   const screenWidth = WINDOW.width;
 
-  // Parse the chapter list so we can navigate prev/next
+  // Parse chapter list
   const chapterList: Chapter[] = useMemo(() => {
     if (!rawChapterList) return [];
     try {
       const parsed = JSON.parse(rawChapterList as string);
-      // Rebuild Chapter instances so methods like displayLabel work
       return parsed.map(
-        (c: any) =>
-          new Chapter({
-            ...c,
-            pages: c.pages ?? [],
-          })
+        (c: any) => new Chapter({ ...c, pages: c.pages ?? [] })
       );
-    } catch {
+    } catch (e) {
+      warn("Failed to parse chapterList:", e);
       return [];
     }
   }, [rawChapterList]);
@@ -211,94 +222,138 @@ export default function ReaderScreen() {
       : null;
 
   // ---------------------------------------------------------------------------
-  // Fetch chapter pages (offline-first)
+  // Fetch chapter (offline-first)
   // ---------------------------------------------------------------------------
 
   const fetchChapter = useCallback(async () => {
+    log("fetchChapter start — url:", chapterUrl);
     setLoading(true);
     setError(null);
+
     try {
-      // 1. Check for a completed local download first
-      const download = await getDownloadByChapter(chapterUrl);
-      if (download?.status === "done" && download.localPath) {
-        const files = await FileSystem.readDirectoryAsync(download.localPath);
-        const pageFiles = files
-          .filter(
-            (f) =>
-              f.startsWith("page_") &&
-              (f.endsWith(".jpg") || f.endsWith(".png"))
-          )
-          .sort((a, b) => {
-            const n = (s: string) =>
-              parseInt(s.split("_")[1].split(".")[0], 10);
-            return n(a) - n(b);
-          });
-        const localPages = pageFiles.map((f) => `${download.localPath}${f}`);
-        setChapter(
-          new Chapter({
-            manga: download.mangaUrl,
-            title: download.chapterTitle,
-            number: 0,
-            url: download.chapterUrl,
-            pages: localPages,
-            isDownloaded: true,
-          })
-        );
-        return;
+      // 1. Check local download
+      log("checking for local download…");
+      let download: Awaited<ReturnType<typeof getDownloadByChapter>> = null;
+      try {
+        download = await getDownloadByChapter(chapterUrl);
+      } catch (e) {
+        warn("getDownloadByChapter threw:", e);
       }
 
-      // 2. Fetch from the source
+      if (download?.status === "done" && download.localPath) {
+        log("local download found at", download.localPath);
+        try {
+          const files = await FileSystem.readDirectoryAsync(download.localPath);
+          log("files in download dir:", files.length);
+          const pageFiles = files
+            .filter(
+              (f) =>
+                f.startsWith("page_") &&
+                (f.endsWith(".jpg") || f.endsWith(".png"))
+            )
+            .sort((a, b) => {
+              const n = (s: string) =>
+                parseInt(s.split("_")[1].split(".")[0], 10);
+              return n(a) - n(b);
+            });
+
+          if (pageFiles.length > 0) {
+            const localPages = pageFiles.map(
+              (f) => `${download!.localPath}${f}`
+            );
+            log("serving", localPages.length, "local pages");
+            setChapter(
+              new Chapter({
+                manga: download.mangaUrl,
+                title: download.chapterTitle,
+                number: 0,
+                url: download.chapterUrl,
+                pages: localPages,
+                isDownloaded: true,
+              })
+            );
+            return;
+          }
+          warn("download dir exists but no page files found, falling back to network");
+        } catch (fsErr) {
+          warn("FileSystem error reading download dir:", fsErr);
+          // Fall through to network
+        }
+      }
+
+      // 2. Fetch from source
       if (!source) {
+        err("Source not found for name:", sourceName);
         setError("Source not found. Is the plugin still installed?");
         return;
       }
-      const fetched = await source.fetchChapterDetails(chapterUrl);
-      if (!fetched.pages.length) {
+
+      log("fetching chapter details from source…");
+      let fetched: Chapter;
+      try {
+        fetched = await source.fetchChapterDetails(chapterUrl);
+      } catch (fetchErr) {
+        err("source.fetchChapterDetails threw:", fetchErr);
+        setError(`Failed to fetch chapter: ${fetchErr}`);
+        return;
+      }
+
+      log("fetched chapter, pages:", fetched.pages?.length ?? 0);
+
+      if (!fetched.pages || fetched.pages.length === 0) {
         setError("This chapter has no pages.");
         return;
       }
+
       setChapter(fetched);
-    } catch (err) {
-      console.error("Error fetching chapter:", err);
-      setError(`Failed to load chapter: ${err}`);
+    } catch (topErr) {
+      err("Unhandled error in fetchChapter:", topErr);
+      setError(`Unexpected error: ${topErr}`);
     } finally {
+      log("fetchChapter done");
       setLoading(false);
     }
-  }, [chapterUrl, source, getDownloadByChapter]);
+  }, [chapterUrl, source, sourceName, getDownloadByChapter]);
 
+  // Load downloads index once on mount
   useEffect(() => {
-    loadDownloads();
+    log("loading downloads index…");
+    loadDownloads().catch((e) => warn("loadDownloads failed:", e));
   }, []);
 
+  // Re-fetch whenever chapterUrl changes
   useEffect(() => {
-    fetchChapter();
+    log("chapterUrl changed, resetting page and fetching…");
     setCurrentPage(0);
+    fetchChapter();
   }, [chapterUrl]);
 
   // ---------------------------------------------------------------------------
-  // Scroll to last-read page after content loads
+  // Scroll-to-resume page
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!chapter) return;
     const resumePage = chapter.lastReadPage ?? 0;
+    log("resume page:", resumePage, "/ total:", chapter.pages.length);
+
     if (resumePage > 0 && resumePage < chapter.pages.length) {
       setCurrentPage(resumePage);
       if (!isVertical) {
-        // Horizontal pager: each item is exactly WINDOW.width wide, so the
-        // offset is perfectly predictable — scrollToOffset needs no getItemLayout.
+        // Horizontal: predictable fixed-width offset, safe to call
         setTimeout(() => {
-          flatListRef.current?.scrollToOffset({
-            offset: WINDOW.width * resumePage,
-            animated: false,
-          });
-        }, 100);
+          try {
+            flatListRef.current?.scrollToOffset({
+              offset: WINDOW.width * resumePage,
+              animated: false,
+            });
+          } catch (e) {
+            warn("scrollToOffset failed:", e);
+          }
+        }, 150);
       }
-      // Vertical (webtoon) mode: pages have variable heights that depend on
-      // each image's aspect ratio, only known after images are fetched and
-      // measured. Calling scrollToIndex without getItemLayout causes a silent
-      // native crash — the app exits with no error shown. We restore the page
-      // number in state so the indicator is correct; scroll starts at the top.
+      // Vertical: variable heights — do NOT call scrollToIndex; just update
+      // the indicator and let the user scroll manually.
     }
   }, [chapter, isVertical]);
 
@@ -316,7 +371,7 @@ export default function ReaderScreen() {
 
   const toggleControls = useCallback(() => {
     setControlsVisible((v) => {
-      if (!v) scheduleHide(); // show → schedule hide
+      if (!v) scheduleHide();
       return !v;
     });
   }, [scheduleHide]);
@@ -329,7 +384,7 @@ export default function ReaderScreen() {
   }, [controlsVisible, isZoomed, scheduleHide]);
 
   // ---------------------------------------------------------------------------
-  // Save reading progress (debounced to avoid hammering the DB)
+  // Save progress (debounced)
   // ---------------------------------------------------------------------------
 
   const saveProgress = useCallback(
@@ -338,7 +393,7 @@ export default function ReaderScreen() {
       if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
       progressSaveTimer.current = setTimeout(async () => {
         const now = new Date().toISOString();
-        const historyItem = {
+        const item = {
           mangaUrl: chapter.manga,
           mangaTitle: chapter.title || "Unknown",
           chapterUrl: chapter.url,
@@ -348,37 +403,53 @@ export default function ReaderScreen() {
           page,
         };
         try {
-          await storeAddHistory(historyItem);
-        } catch {
-          // If insert fails, try updating
-          await storeUpdateHistory(
-            chapter.manga,
-            chapter.url,
-            chapter.number,
-            now,
-            page
-          );
+          await storeAddHistory(item);
+          log("history saved — page:", page);
+        } catch (insertErr) {
+          warn("addToHistory failed, trying update:", insertErr);
+          try {
+            await storeUpdateHistory(
+              chapter.manga,
+              chapter.url,
+              chapter.number,
+              now,
+              page
+            );
+          } catch (updateErr) {
+            warn("updateHistory also failed:", updateErr);
+          }
         }
       }, 800);
     },
     [chapter, sourceName, storeAddHistory, storeUpdateHistory]
   );
 
+  // Clean up save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+    };
+  }, []);
+
   // ---------------------------------------------------------------------------
-  // Page change handler
+  // Page change
   // ---------------------------------------------------------------------------
 
   const handlePageChange = useCallback(
     (event: any) => {
       if (isZoomed) return;
-      const offset = isVertical
-        ? event.nativeEvent.contentOffset.y
-        : event.nativeEvent.contentOffset.x;
-      const size = isVertical ? WINDOW.height : WINDOW.width;
-      const index = Math.max(0, Math.round(offset / size));
-      if (index !== currentPage) {
-        setCurrentPage(index);
-        saveProgress(index);
+      try {
+        const offset = isVertical
+          ? event.nativeEvent.contentOffset.y
+          : event.nativeEvent.contentOffset.x;
+        const size = isVertical ? WINDOW.height : WINDOW.width;
+        const index = Math.max(0, Math.round(offset / size));
+        if (index !== currentPage) {
+          setCurrentPage(index);
+          saveProgress(index);
+        }
+      } catch (e) {
+        warn("handlePageChange error:", e);
       }
     },
     [isZoomed, isVertical, currentPage, saveProgress]
@@ -390,6 +461,7 @@ export default function ReaderScreen() {
 
   const goToChapter = useCallback(
     (ch: Chapter) => {
+      log("navigating to chapter:", ch.number);
       router.replace({
         pathname: "/(manga)/readerScreen",
         params: {
@@ -466,13 +538,16 @@ export default function ReaderScreen() {
         </ThemedText>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={[styles.errorBackBtn, { backgroundColor: colors.surface }]}
+          style={[styles.errorBtn, { backgroundColor: colors.surface }]}
         >
           <ThemedText variant="accent">Go Back</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={fetchChapter}
-          style={[styles.errorBackBtn, { backgroundColor: colors.accent, marginTop: 8 }]}
+          style={[
+            styles.errorBtn,
+            { backgroundColor: colors.accent, marginTop: 8 },
+          ]}
         >
           <Text style={{ color: "#fff" }}>Retry</Text>
         </TouchableOpacity>
@@ -483,7 +558,7 @@ export default function ReaderScreen() {
   const totalPages = chapter.pages.length;
 
   // ---------------------------------------------------------------------------
-  // Pager mode wraps the FlatList in a ZoomableView for unified pinch support
+  // Main render
   // ---------------------------------------------------------------------------
 
   const pagerContent = (
@@ -506,8 +581,13 @@ export default function ReaderScreen() {
       windowSize={isVertical ? 5 : 3}
       initialNumToRender={isVertical ? 3 : 1}
       maxToRenderPerBatch={isVertical ? 3 : 2}
+      // Only provide getItemLayout for horizontal pager — vertical heights are
+      // dynamic (image aspect ratios) and passing getItemLayout there causes
+      // native crashes when scrollToIndex is attempted.
       getItemLayout={isVertical ? undefined : getItemLayout}
-      onScrollToIndexFailed={() => {}}
+      onScrollToIndexFailed={(info) => {
+        warn("onScrollToIndexFailed:", info);
+      }}
     />
   );
 
@@ -516,12 +596,9 @@ export default function ReaderScreen() {
       <StatusBar hidden={!controlsVisible} animated />
 
       <View style={styles.container}>
-        {/* ---- Pages ---- */}
         {isVertical ? (
-          // Vertical: tap-to-toggle handled per-page inside Page component
           pagerContent
         ) : (
-          // Pager: single ZoomableView wrapping the horizontal FlatList
           <ZoomableView
             onZoomChange={handleZoomChange}
             onSingleTap={toggleControls}
@@ -530,7 +607,7 @@ export default function ReaderScreen() {
           </ZoomableView>
         )}
 
-        {/* ---- Top controls overlay ---- */}
+        {/* Top bar */}
         {controlsVisible && (
           <Animated.View
             entering={FadeIn.duration(180)}
@@ -538,7 +615,6 @@ export default function ReaderScreen() {
             style={[
               styles.topBar,
               {
-                top: 0,
                 paddingTop: insets.top + 8,
                 backgroundColor: `${colors.surface}E6`,
               },
@@ -562,7 +638,6 @@ export default function ReaderScreen() {
               </ThemedText>
             </View>
 
-            {/* Reading-mode badge */}
             <View
               style={[
                 styles.modeBadge,
@@ -579,7 +654,7 @@ export default function ReaderScreen() {
           </Animated.View>
         )}
 
-        {/* ---- Bottom controls overlay ---- */}
+        {/* Bottom bar */}
         {controlsVisible && (
           <Animated.View
             entering={FadeIn.duration(180)}
@@ -592,7 +667,6 @@ export default function ReaderScreen() {
               },
             ]}
           >
-            {/* Previous chapter */}
             <TouchableOpacity
               onPress={() => prevChapter && goToChapter(prevChapter)}
               disabled={!prevChapter}
@@ -604,11 +678,7 @@ export default function ReaderScreen() {
                 },
               ]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={18}
-                color={colors.text}
-              />
+              <Ionicons name="chevron-back" size={18} color={colors.text} />
               <ThemedText
                 variant="secondary"
                 style={{ fontSize: sizes.sub, marginLeft: 2 }}
@@ -618,7 +688,6 @@ export default function ReaderScreen() {
               </ThemedText>
             </TouchableOpacity>
 
-            {/* Page indicator */}
             <View style={styles.pageIndicator}>
               <ThemedText
                 variant="default"
@@ -631,7 +700,6 @@ export default function ReaderScreen() {
               </ThemedText>
             </View>
 
-            {/* Next chapter */}
             <TouchableOpacity
               onPress={() => nextChapter && goToChapter(nextChapter)}
               disabled={!nextChapter}
@@ -650,11 +718,7 @@ export default function ReaderScreen() {
               >
                 {nextChapter ? `Ch.${nextChapter.number}` : "End"}
               </ThemedText>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.text}
-              />
+              <Ionicons name="chevron-forward" size={18} color={colors.text} />
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -724,7 +788,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     maxWidth: 120,
   },
-  errorBackBtn: {
+  errorBtn: {
     marginTop: 20,
     paddingHorizontal: 24,
     paddingVertical: 12,
