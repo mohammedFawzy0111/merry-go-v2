@@ -19,6 +19,23 @@ import notifee from "@notifee/react-native";
 import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+// Put this at the top level (outside component or inside a useEffect that runs once)
+
+if (global.ErrorUtils) {
+  const defaultHandler = global.ErrorUtils.getGlobalHandler?.();
+
+  global.ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
+    console.log("🔥 GLOBAL ERROR CAUGHT:");
+    console.log("isFatal:", isFatal);
+    console.log(error);
+
+    if (defaultHandler) {
+      defaultHandler(error, isFatal);
+    }
+  });
+}
 
 // Run these synchronously/eagerly at module load — before React renders anything.
 // initDb() is synchronous under the hood (quick-sqlite). Doing it here (rather
@@ -62,14 +79,16 @@ function AppInit() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{flex:1}}>
-    <SettingsProvider>
-      <AppInit />
-      <BlueLightOverlay />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(manga)" options={{ headerShown: false }} />
-      </Stack>
-    </SettingsProvider>
+      <SafeAreaProvider>
+        <SettingsProvider>
+          <AppInit />
+          <BlueLightOverlay />
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(manga)" options={{ headerShown: false }} />
+          </Stack>
+        </SettingsProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

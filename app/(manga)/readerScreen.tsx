@@ -1,797 +1,747 @@
 /**
  * readerScreen.tsx
  *
- * Full-featured manga / manhwa reader.
- * Hardened against silent crashes with try/catch around every async path
- * and verbose debug logging (search "🔍" in Metro to trace issues).
+ * Tachiyomi-style reader — rebuilt from scratch.
+ *
+ * Architecture decisions (all crash-driven):
+ *  - Vertical mode   → plain FlatList, ScrollView per-page for native zoom
+ *  - Horizontal mode → FlatList + pagingEnabled, tap zones handle page turn
+ *                      (NO outer GestureDetector / ZoomableView wrapper)
+ *  - Zero Reanimated on nav bars → plain useState visibility, no FadeIn/FadeOut
+ *  - Zoom            → ScrollView maximumZoomScale (fully native, never crashes)
+ *  - No ZoomableView, no Gesture.Simultaneous wrapping scroll views
  */
 
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { ZoomableView } from "@/components/ZoomableView";
-import { useFontSize, useReadingMode, useTheme } from "@/contexts/settingProvider";
-import { sourceManager } from "@/sources";
-import { useDownloadStore } from "@/store/downloadStore";
-import { useHistoryStore } from "@/store/historyStore";
-import { Chapter } from "@/utils/sourceModel";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
-import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { useFontSize, useReadingMode, useTheme } from '@/contexts/settingProvider';
+import { sourceManager } from '@/sources';
+import { useDownloadStore } from '@/store/downloadStore';
+import { useHistoryStore } from '@/store/historyStore';
+import { Chapter } from '@/utils/sourceModel';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import { Image } from 'expo-image';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
-} from "react";
+} from 'react';
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
   Image as RNImage,
-  ListRenderItemInfo,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-} from "react-native";
-import Animated, {
-  FadeIn,
-  FadeOut,
-} from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const WINDOW = Dimensions.get("window");
-const CONTROLS_HIDE_DELAY = 4000;
-const PLACEHOLDER_BLURHASH = "L6PZfSjE.AyE_3t7t7R**0o#DgR4";
-const DEBUG = __DEV__; // flip to false to silence logs in production
+const { width: W, height: H } = Dimensions.get('window');
+const CONTROLS_TIMEOUT = 3500;
+const BLURHASH = 'L6PZfSjE.AyE_3t7t7R**0o#DgR4';
 
-function log(...args: any[]) {
-  if (DEBUG) console.log("🔍 [Reader]", ...args);
-}
-function warn(...args: any[]) {
-  if (DEBUG) console.warn("⚠️ [Reader]", ...args);
-}
-function err(...args: any[]) {
-  console.error("❌ [Reader]", ...args);
-}
+const log  = (...a: any[]) => __DEV__ && console.log('[Reader]', ...a);
+const warn = (...a: any[]) => __DEV__ && console.warn('[Reader]', ...a);
 
-// ---------------------------------------------------------------------------
-// Page component
-// ---------------------------------------------------------------------------
+// ─── ZoomPage — native scroll-view zoom, one per horizontal page ──────────────
 
-type PageProps = {
-  uri: string;
-  screenWidth: number;
-  isVertical: boolean;
-  onZoomChange?: (zoomed: boolean) => void;
-  onTap?: () => void;
-};
-
-const Page = React.memo(function Page({
-  uri,
-  screenWidth,
-  isVertical,
-  onZoomChange,
-  onTap,
-}: PageProps) {
-  const [aspectRatio, setAspectRatio] = useState(2 / 3);
+const ZoomPage = React.memo(({ uri }: { uri: string }) => {
+  const [ratio, setRatio] = useState(4 / 3);
 
   useEffect(() => {
     if (!uri) return;
-    let cancelled = false;
-
-    // Prefetch then measure — wrapped in try/catch so a bad URI never kills
-    // the whole reader.
-    Image.prefetch(uri)
-      .then(() => {
-        if (cancelled) return;
-        RNImage.getSize(
-          uri,
-          (w: number, h: number) => {
-            if (!cancelled && w > 0 && h > 0) {
-              setAspectRatio(w / h);
-            }
-          },
-          (e: any) => {
-            warn("getSize failed for", uri, e);
-          }
-        );
-      })
-      .catch((e) => {
-        warn("prefetch failed for", uri, e);
-      });
-
-    return () => { cancelled = true; };
+    let alive = true;
+    RNImage.getSize(
+      uri,
+      (w, h) => { if (alive && w > 0 && h > 0) setRatio(h / w); },
+      () => {},
+    );
+    return () => { alive = false; };
   }, [uri]);
 
-  const imageStyle = isVertical
-    ? { width: screenWidth, aspectRatio }
-    : { width: screenWidth, height: WINDOW.height };
-
-  if (isVertical) {
-    return (
-      <ZoomableView onZoomChange={onZoomChange} onSingleTap={onTap}>
-        <Image
-          source={{ uri }}
-          style={imageStyle}
-          contentFit="contain"
-          placeholder={PLACEHOLDER_BLURHASH}
-          transition={200}
-        />
-      </ZoomableView>
-    );
-  }
-
   return (
-    <View
-      style={{
-        width: screenWidth,
-        height: WINDOW.height,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "black",
-      }}
+    <ScrollView
+      style={{ width: W, height: H }}
+      contentContainerStyle={styles.zoomContent}
+      maximumZoomScale={4}
+      minimumZoomScale={1}
+      showsHorizontalScrollIndicator={false}
+      showsVerticalScrollIndicator={false}
+      bouncesZoom
+      centerContent
     >
       <Image
         source={{ uri }}
-        style={imageStyle}
+        style={{ width: W, height: W * ratio }}
         contentFit="contain"
-        placeholder={PLACEHOLDER_BLURHASH}
-        transition={200}
+        placeholder={BLURHASH}
+        transition={120}
+        recyclingKey={uri}
       />
-    </View>
+    </ScrollView>
   );
 });
 
-// ---------------------------------------------------------------------------
-// Main screen
-// ---------------------------------------------------------------------------
+// ─── WebtoonPage — full-width image, no zoom, for vertical scroll ─────────────
+
+const WebtoonPage = React.memo(({ uri }: { uri: string }) => {
+  const [ratio, setRatio] = useState(3 / 2);
+
+  useEffect(() => {
+    if (!uri) return;
+    let alive = true;
+    RNImage.getSize(
+      uri,
+      (w, h) => { if (alive && w > 0 && h > 0) setRatio(h / w); },
+      () => {},
+    );
+    return () => { alive = false; };
+  }, [uri]);
+
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: W, height: W * ratio }}
+      contentFit="fill"
+      placeholder={BLURHASH}
+      transition={120}
+      recyclingKey={uri}
+    />
+  );
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ReaderScreen() {
   const {
     chapterUrl,
     sourceName,
-    chapterList: rawChapterList,
+    mangaUrl,
   } = useLocalSearchParams<{
     chapterUrl: string;
     sourceName: string;
-    chapterList?: string;
+    mangaUrl?: string;
   }>();
 
-  log("mount — chapterUrl:", chapterUrl, "source:", sourceName);
+  const { colors, isDark } = useTheme();
+  const { readingMode }    = useReadingMode();
+  const router             = useRouter();
+  const insets             = useSafeAreaInsets();
 
-  const { colors } = useTheme();
-  const { sizes } = useFontSize();
-  const { readingMode } = useReadingMode();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const source = sourceManager.getSourceByName(sourceName as string)?.source;
+  const { getDownloadByChapter, loadDownloads } = useDownloadStore();
+  const { addToHistory, updateHistory }         = useHistoryStore();
 
-  const source = sourceManager.getSourceByName(sourceName)?.source;
-  const { loadDownloads, getDownloadByChapter } = useDownloadStore();
-  const { addToHistory: storeAddHistory, updateHistory: storeUpdateHistory } =
-    useHistoryStore();
+  // ── state ──────────────────────────────────────────────────────────────────
+  const [chapter, setChapter]         = useState<Chapter | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [uiVisible, setUiVisible]     = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);   // 0-indexed
 
-  // ---- state ----
-  const [chapter, setChapter] = useState<Chapter | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const flatRef        = useRef<FlatList>(null);
+  const hideTimer      = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimer      = useRef<ReturnType<typeof setTimeout>>();
+  const scrubberWidth  = useRef(0);
+  const mounted        = useRef(true);
 
-  const flatListRef = useRef<FlatList>(null);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isVertical = readingMode === 'vertical';
+  const isRTL      = readingMode === 'rtl';
+  const totalPages = chapter?.pages.length ?? 0;
 
-  // ---- derived ----
-  const isVertical = readingMode === "vertical";
-  const isRTL = readingMode === "rtl";
-  const screenWidth = WINDOW.width;
+  // unmount guard
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(hideTimer.current);
+      clearTimeout(saveTimer.current);
+    };
+  }, []);
 
-  // Parse chapter list
-  const chapterList: Chapter[] = useMemo(() => {
-    if (!rawChapterList) return [];
-    try {
-      const parsed = JSON.parse(rawChapterList as string);
-      return parsed.map(
-        (c: any) => new Chapter({ ...c, pages: c.pages ?? [] })
-      );
-    } catch (e) {
-      warn("Failed to parse chapterList:", e);
-      return [];
-    }
-  }, [rawChapterList]);
-
-  const currentChapterIndex = useMemo(
-    () => chapterList.findIndex((c) => c.url === chapterUrl),
-    [chapterList, chapterUrl]
-  );
-
-  const prevChapter =
-    currentChapterIndex > 0 ? chapterList[currentChapterIndex - 1] : null;
-  const nextChapter =
-    currentChapterIndex < chapterList.length - 1
-      ? chapterList[currentChapterIndex + 1]
-      : null;
-
-  // ---------------------------------------------------------------------------
-  // Fetch chapter (offline-first)
-  // ---------------------------------------------------------------------------
-
-  const fetchChapter = useCallback(async () => {
-    log("fetchChapter start — url:", chapterUrl);
+  // ── fetch chapter ──────────────────────────────────────────────────────────
+  const fetchChapter = useCallback(async (url: string) => {
+    if (!mounted.current) return;
+    log('fetch', url);
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Check local download
-      log("checking for local download…");
-      let download: Awaited<ReturnType<typeof getDownloadByChapter>> = null;
-      try {
-        download = await getDownloadByChapter(chapterUrl);
-      } catch (e) {
-        warn("getDownloadByChapter threw:", e);
-      }
+      // 1. Check completed local download
+      let dl = null;
+      try { dl = await getDownloadByChapter(url); } catch {}
 
-      if (download?.status === "done" && download.localPath) {
-        log("local download found at", download.localPath);
+      if (dl?.status === 'done' && dl.localPath) {
         try {
-          const files = await FileSystem.readDirectoryAsync(download.localPath);
-          log("files in download dir:", files.length);
-          const pageFiles = files
-            .filter(
-              (f) =>
-                f.startsWith("page_") &&
-                (f.endsWith(".jpg") || f.endsWith(".png"))
-            )
+          const files = await FileSystem.readDirectoryAsync(dl.localPath);
+          const pages = files
+            .filter(f => /^page_\d+\.(jpg|jpeg|png|webp)$/i.test(f))
             .sort((a, b) => {
-              const n = (s: string) =>
-                parseInt(s.split("_")[1].split(".")[0], 10);
+              const n = (s: string) => parseInt(s.match(/\d+/)![0], 10);
               return n(a) - n(b);
-            });
+            })
+            .map(f => `${dl!.localPath}${f}`);
 
-          if (pageFiles.length > 0) {
-            const localPages = pageFiles.map(
-              (f) => `${download!.localPath}${f}`
-            );
-            log("serving", localPages.length, "local pages");
-            setChapter(
-              new Chapter({
-                manga: download.mangaUrl,
-                title: download.chapterTitle,
-                number: 0,
-                url: download.chapterUrl,
-                pages: localPages,
-                isDownloaded: true,
-              })
-            );
+          if (pages.length > 0) {
+            if (mounted.current) {
+              setChapter(new Chapter({
+                manga: dl.mangaUrl, title: dl.chapterTitle,
+                number: 0, url: dl.chapterUrl, pages, isDownloaded: true,
+              }));
+            }
             return;
           }
-          warn("download dir exists but no page files found, falling back to network");
-        } catch (fsErr) {
-          warn("FileSystem error reading download dir:", fsErr);
-          // Fall through to network
-        }
+        } catch (e) { warn('local read error', e); }
       }
 
-      // 2. Fetch from source
+      // 2. Network
       if (!source) {
-        err("Source not found for name:", sourceName);
-        setError("Source not found. Is the plugin still installed?");
+        if (mounted.current) setError('Source plugin not found. Is it installed?');
         return;
       }
 
-      log("fetching chapter details from source…");
-      let fetched: Chapter;
-      try {
-        fetched = await source.fetchChapterDetails(chapterUrl);
-      } catch (fetchErr) {
-        err("source.fetchChapterDetails threw:", fetchErr);
-        setError(`Failed to fetch chapter: ${fetchErr}`);
+      const data = await source.fetchChapterDetails(url);
+
+      if (!data?.pages?.length) {
+        if (mounted.current) setError('This chapter has no pages.');
         return;
       }
 
-      log("fetched chapter, pages:", fetched.pages?.length ?? 0);
-
-      if (!fetched.pages || fetched.pages.length === 0) {
-        setError("This chapter has no pages.");
-        return;
-      }
-
-      setChapter(fetched);
-    } catch (topErr) {
-      err("Unhandled error in fetchChapter:", topErr);
-      setError(`Unexpected error: ${topErr}`);
+      if (mounted.current) setChapter(data);
+    } catch (e) {
+      warn('fetchChapter threw', e);
+      if (mounted.current) setError(`Failed to load chapter:\n${String(e)}`);
     } finally {
-      log("fetchChapter done");
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
-  }, [chapterUrl, source, sourceName, getDownloadByChapter]);
+  }, [source, getDownloadByChapter]);
 
-  // Load downloads index once on mount
-  useEffect(() => {
-    log("loading downloads index…");
-    loadDownloads().catch((e) => warn("loadDownloads failed:", e));
-  }, []);
+  // load downloads index once
+  useEffect(() => { loadDownloads().catch(() => {}); }, []);
 
-  // Re-fetch whenever chapterUrl changes
+  // re-fetch when URL changes
   useEffect(() => {
-    log("chapterUrl changed, resetting page and fetching…");
+    if (!chapterUrl) return;
     setCurrentPage(0);
-    fetchChapter();
+    setChapter(null);
+    fetchChapter(chapterUrl as string);
   }, [chapterUrl]);
 
-  // ---------------------------------------------------------------------------
-  // Scroll-to-resume page
-  // ---------------------------------------------------------------------------
-
+  // resume last page
   useEffect(() => {
     if (!chapter) return;
-    const resumePage = chapter.lastReadPage ?? 0;
-    log("resume page:", resumePage, "/ total:", chapter.pages.length);
-
-    if (resumePage > 0 && resumePage < chapter.pages.length) {
-      setCurrentPage(resumePage);
-      if (!isVertical) {
-        // Horizontal: predictable fixed-width offset, safe to call
-        setTimeout(() => {
-          try {
-            flatListRef.current?.scrollToOffset({
-              offset: WINDOW.width * resumePage,
-              animated: false,
-            });
-          } catch (e) {
-            warn("scrollToOffset failed:", e);
-          }
-        }, 150);
-      }
-      // Vertical: variable heights — do NOT call scrollToIndex; just update
-      // the indicator and let the user scroll manually.
+    const resume = chapter.lastReadPage ?? 0;
+    if (resume > 0 && resume < chapter.pages.length && !isVertical) {
+      setCurrentPage(resume);
+      setTimeout(() => {
+        try { flatRef.current?.scrollToOffset({ offset: W * resume, animated: false }); }
+        catch {}
+      }, 80);
     }
-  }, [chapter, isVertical]);
+  }, [chapter?.url]);
 
-  // ---------------------------------------------------------------------------
-  // Controls auto-hide
-  // ---------------------------------------------------------------------------
-
-  const scheduleHide = useCallback(() => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(
-      () => setControlsVisible(false),
-      CONTROLS_HIDE_DELAY
-    );
+  // ── UI auto-hide ───────────────────────────────────────────────────────────
+  const resetHideTimer = useCallback(() => {
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      if (mounted.current) setUiVisible(false);
+    }, CONTROLS_TIMEOUT);
   }, []);
 
-  const toggleControls = useCallback(() => {
-    setControlsVisible((v) => {
-      if (!v) scheduleHide();
+  const showUI = useCallback(() => {
+    if (mounted.current) setUiVisible(true);
+    resetHideTimer();
+  }, [resetHideTimer]);
+
+  const toggleUI = useCallback(() => {
+    if (!mounted.current) return;
+    setUiVisible(v => {
+      if (!v) resetHideTimer();
       return !v;
     });
-  }, [scheduleHide]);
+  }, [resetHideTimer]);
 
-  useEffect(() => {
-    if (controlsVisible && !isZoomed) scheduleHide();
-    return () => {
-      if (hideTimer.current) clearTimeout(hideTimer.current);
-    };
-  }, [controlsVisible, isZoomed, scheduleHide]);
+  useEffect(() => { if (uiVisible) resetHideTimer(); }, [uiVisible]);
 
-  // ---------------------------------------------------------------------------
-  // Save progress (debounced)
-  // ---------------------------------------------------------------------------
-
-  const saveProgress = useCallback(
-    (page: number) => {
-      if (!chapter) return;
-      if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
-      progressSaveTimer.current = setTimeout(async () => {
-        const now = new Date().toISOString();
-        const item = {
-          mangaUrl: chapter.manga,
-          mangaTitle: chapter.title || "Unknown",
-          chapterUrl: chapter.url,
-          chapterNumber: chapter.number,
-          source: sourceName,
-          lastRead: now,
-          page,
-        };
-        try {
-          await storeAddHistory(item);
-          log("history saved — page:", page);
-        } catch (insertErr) {
-          warn("addToHistory failed, trying update:", insertErr);
-          try {
-            await storeUpdateHistory(
-              chapter.manga,
-              chapter.url,
-              chapter.number,
-              now,
-              page
-            );
-          } catch (updateErr) {
-            warn("updateHistory also failed:", updateErr);
-          }
-        }
-      }, 800);
-    },
-    [chapter, sourceName, storeAddHistory, storeUpdateHistory]
-  );
-
-  // Clean up save timer on unmount
-  useEffect(() => {
-    return () => {
-      if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
-    };
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // Page change
-  // ---------------------------------------------------------------------------
-
-  const handlePageChange = useCallback(
-    (event: any) => {
-      if (isZoomed) return;
-      try {
-        const offset = isVertical
-          ? event.nativeEvent.contentOffset.y
-          : event.nativeEvent.contentOffset.x;
-        const size = isVertical ? WINDOW.height : WINDOW.width;
-        const index = Math.max(0, Math.round(offset / size));
-        if (index !== currentPage) {
-          setCurrentPage(index);
-          saveProgress(index);
-        }
-      } catch (e) {
-        warn("handlePageChange error:", e);
+  // ── save progress ──────────────────────────────────────────────────────────
+  const saveProgress = useCallback((page: number) => {
+    if (!chapter) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (!mounted.current) return;
+      const now  = new Date().toISOString();
+      const mUrl = (mangaUrl as string) || chapter.manga;
+      const item = {
+        mangaUrl: mUrl,
+        mangaTitle: chapter.title || 'Unknown',
+        chapterUrl: chapter.url,
+        chapterNumber: chapter.number,
+        source: sourceName as string,
+        lastRead: now,
+        page,
+      };
+      try { await addToHistory(item); }
+      catch {
+        try { await updateHistory(mUrl, chapter.url, chapter.number, now, page); }
+        catch {}
       }
-    },
-    [isZoomed, isVertical, currentPage, saveProgress]
-  );
+    }, 500);
+  }, [chapter, mangaUrl, sourceName, addToHistory, updateHistory]);
 
-  // ---------------------------------------------------------------------------
-  // Chapter navigation
-  // ---------------------------------------------------------------------------
+  // ── page navigation ────────────────────────────────────────────────────────
+  const goToPage = useCallback((idx: number) => {
+    if (!chapter) return;
+    const clamped = Math.max(0, Math.min(chapter.pages.length - 1, idx));
+    setCurrentPage(clamped);
+    saveProgress(clamped);
+    if (!isVertical) {
+      try { flatRef.current?.scrollToOffset({ offset: W * clamped, animated: false }); }
+      catch {}
+    }
+  }, [chapter, isVertical, saveProgress]);
 
-  const goToChapter = useCallback(
-    (ch: Chapter) => {
-      log("navigating to chapter:", ch.number);
-      router.replace({
-        pathname: "/(manga)/readerScreen",
-        params: {
-          chapterUrl: ch.url,
-          sourceName,
-          chapterList: rawChapterList,
-        },
-      });
-    },
-    [router, sourceName, rawChapterList]
-  );
+  const tapPrev = useCallback(() => goToPage(isRTL ? currentPage + 1 : currentPage - 1), [goToPage, currentPage, isRTL]);
+  const tapNext = useCallback(() => goToPage(isRTL ? currentPage - 1 : currentPage + 1), [goToPage, currentPage, isRTL]);
 
-  // ---------------------------------------------------------------------------
-  // Render helpers
-  // ---------------------------------------------------------------------------
+  // ── scroll handlers ────────────────────────────────────────────────────────
+  const onHorizontalScrollEnd = useCallback((e: any) => {
+    const idx = Math.max(0, Math.round(e.nativeEvent.contentOffset.x / W));
+    setCurrentPage(idx);
+    saveProgress(idx);
+  }, [saveProgress]);
 
-  const handleZoomChange = useCallback((zoomed: boolean) => {
-    setIsZoomed(zoomed);
+  const onVerticalScroll = useCallback((e: any) => {
+    if (!chapter) return;
+    const y      = e.nativeEvent.contentOffset.y;
+    const maxY   = e.nativeEvent.contentSize.height - H;
+    const approx = maxY > 0 ? Math.round((y / maxY) * (chapter.pages.length - 1)) : 0;
+    const clamped = Math.max(0, Math.min(chapter.pages.length - 1, approx));
+    setCurrentPage(clamped);
+    saveProgress(clamped);
+  }, [chapter, saveProgress]);
+
+  // ── scrubber ───────────────────────────────────────────────────────────────
+  const onScrubLayout = useCallback((e: any) => {
+    scrubberWidth.current = e.nativeEvent.layout.width;
   }, []);
 
-  const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<string>) => (
-      <Page
-        uri={item}
-        screenWidth={screenWidth}
-        isVertical={isVertical}
-        onZoomChange={isVertical ? handleZoomChange : undefined}
-        onTap={isVertical ? toggleControls : undefined}
-      />
-    ),
-    [screenWidth, isVertical, handleZoomChange, toggleControls]
-  );
+  const onScrubPress = useCallback((e: any) => {
+    if (!chapter || scrubberWidth.current === 0) return;
+    const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / scrubberWidth.current));
+    const page  = Math.round(ratio * (chapter.pages.length - 1));
+    goToPage(page);
+    showUI();
+  }, [chapter, goToPage, showUI]);
 
-  const keyExtractor = useCallback(
-    (_: string, index: number) => `page-${index}`,
-    []
-  );
+  // ── renderers ──────────────────────────────────────────────────────────────
+  const renderHPage = useCallback(({ item }: { item: string }) =>
+    <ZoomPage uri={item} />, []);
 
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: WINDOW.width,
-      offset: WINDOW.width * index,
-      index,
-    }),
-    []
-  );
+  const renderVPage = useCallback(({ item }: { item: string }) =>
+    <WebtoonPage uri={item} />, []);
 
-  // ---------------------------------------------------------------------------
-  // Loading / error states
-  // ---------------------------------------------------------------------------
+  const keyExtract = useCallback((_: string, i: number) => `pg-${i}`, []);
 
+  const hLayout = useCallback((_: any, i: number) =>
+    ({ length: W, offset: W * i, index: i }), []);
+
+  // ── computed ───────────────────────────────────────────────────────────────
+  const sliderPct    = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
+  const displayPage  = currentPage + 1;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LOADING
+  // ══════════════════════════════════════════════════════════════════════════
   if (loading) {
     return (
-      <ThemedView variant="background" style={styles.center}>
+      <View style={[styles.fill, { backgroundColor: '#000' }]}>
         <StatusBar hidden />
         <ActivityIndicator size="large" color={colors.accent} />
-        <ThemedText variant="secondary" style={{ marginTop: 12 }}>
+        <Text style={[styles.loadText, { color: 'rgba(255,255,255,0.6)' }]}>
           Loading chapter…
-        </ThemedText>
-      </ThemedView>
+        </Text>
+      </View>
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ERROR
+  // ══════════════════════════════════════════════════════════════════════════
   if (error || !chapter) {
     return (
-      <ThemedView variant="background" style={styles.center}>
-        <StatusBar style="auto" />
-        <MaterialIcons name="error-outline" size={48} color={colors.error} />
-        <ThemedText
-          variant="secondary"
-          style={{ marginTop: 12, textAlign: "center", paddingHorizontal: 32 }}
-        >
-          {error ?? "Unknown error"}
-        </ThemedText>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={[styles.errorBtn, { backgroundColor: colors.surface }]}
-        >
-          <ThemedText variant="accent">Go Back</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={fetchChapter}
-          style={[
-            styles.errorBtn,
-            { backgroundColor: colors.accent, marginTop: 8 },
-          ]}
-        >
-          <Text style={{ color: "#fff" }}>Retry</Text>
-        </TouchableOpacity>
-      </ThemedView>
+      <View style={[styles.fill, { backgroundColor: colors.bg }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <View style={styles.errorBox}>
+          <Ionicons name="alert-circle-outline" size={52} color={colors.error} />
+          <Text style={[styles.errTitle, { color: colors.text }]}>
+            Could not load chapter
+          </Text>
+          <Text style={[styles.errBody, { color: colors.textSecondary }]}>
+            {error ?? 'Unknown error'}
+          </Text>
+          <TouchableOpacity
+            style={[styles.errBtn, { backgroundColor: colors.accent }]}
+            onPress={() => fetchChapter(chapterUrl as string)}
+          >
+            <Text style={styles.errBtnTxt}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.errBtn, { backgroundColor: colors.surface, marginTop: 8 }]}
+            onPress={() => router.back()}
+          >
+            <Text style={[styles.errBtnTxt, { color: colors.text }]}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     );
   }
 
-  const totalPages = chapter.pages.length;
-
-  // ---------------------------------------------------------------------------
-  // Main render
-  // ---------------------------------------------------------------------------
-
-  const pagerContent = (
-    <FlatList
-      ref={flatListRef}
-      data={chapter.pages}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      horizontal={!isVertical}
-      inverted={isRTL}
-      pagingEnabled={!isVertical}
-      snapToAlignment="center"
-      snapToInterval={!isVertical ? WINDOW.width : undefined}
-      decelerationRate={isVertical ? "normal" : "fast"}
-      showsVerticalScrollIndicator={false}
-      showsHorizontalScrollIndicator={false}
-      scrollEnabled={!isZoomed}
-      onMomentumScrollEnd={handlePageChange}
-      removeClippedSubviews
-      windowSize={isVertical ? 5 : 3}
-      initialNumToRender={isVertical ? 3 : 1}
-      maxToRenderPerBatch={isVertical ? 3 : 2}
-      // Only provide getItemLayout for horizontal pager — vertical heights are
-      // dynamic (image aspect ratios) and passing getItemLayout there causes
-      // native crashes when scrollToIndex is attempted.
-      getItemLayout={isVertical ? undefined : getItemLayout}
-      onScrollToIndexFailed={(info) => {
-        warn("onScrollToIndexFailed:", info);
-      }}
-    />
-  );
+  // ══════════════════════════════════════════════════════════════════════════
+  // READER
+  // ══════════════════════════════════════════════════════════════════════════
+  const pages = chapter.pages;
 
   return (
-    <>
-      <StatusBar hidden={!controlsVisible} animated />
+    <View style={[styles.fill, { backgroundColor: '#000' }]}>
+      <StatusBar hidden={!uiVisible} animated />
 
-      <View style={styles.container}>
-        {isVertical ? (
-          pagerContent
-        ) : (
-          <ZoomableView
-            onZoomChange={handleZoomChange}
-            onSingleTap={toggleControls}
-          >
-            {pagerContent}
-          </ZoomableView>
-        )}
+      {/* ═══ VERTICAL / WEBTOON ═══════════════════════════════════════════ */}
+      {isVertical && (
+        <Pressable style={styles.fill} onPress={toggleUI}>
+          <FlatList
+            ref={flatRef}
+            data={pages}
+            keyExtractor={keyExtract}
+            renderItem={renderVPage}
+            showsVerticalScrollIndicator={false}
+            onScroll={onVerticalScroll}
+            scrollEventThrottle={200}
+            removeClippedSubviews
+            initialNumToRender={3}
+            maxToRenderPerBatch={3}
+            windowSize={5}
+          />
+        </Pressable>
+      )}
 
-        {/* Top bar */}
-        {controlsVisible && (
-          <Animated.View
-            entering={FadeIn.duration(180)}
-            exiting={FadeOut.duration(180)}
-            style={[
-              styles.topBar,
-              {
-                paddingTop: insets.top + 8,
-                backgroundColor: `${colors.surface}E6`,
-              },
-            ]}
+      {/* ═══ HORIZONTAL PAGER (LTR / RTL) ════════════════════════════════ */}
+      {!isVertical && (
+        <View style={styles.fill}>
+          <FlatList
+            ref={flatRef}
+            data={isRTL ? [...pages].reverse() : pages}
+            keyExtractor={keyExtract}
+            renderItem={renderHPage}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={onHorizontalScrollEnd}
+            scrollEventThrottle={16}
+            removeClippedSubviews
+            initialNumToRender={2}
+            maxToRenderPerBatch={2}
+            windowSize={3}
+            getItemLayout={hLayout}
+            onScrollToIndexFailed={() => {}}
+          />
+
+          {/* Tap zones — drawn OVER the FlatList */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+            <Pressable style={styles.tapLeft}  onPress={isRTL ? tapNext : tapPrev} />
+            <Pressable style={styles.tapMid}   onPress={toggleUI} />
+            <Pressable style={styles.tapRight} onPress={isRTL ? tapPrev : tapNext} />
+          </View>
+        </View>
+      )}
+
+      {/* ═══ PAGE COUNTER PILL (always visible) ══════════════════════════ */}
+      {!uiVisible && (
+        <View
+          style={[
+            styles.pillWrap,
+            { bottom: insets.bottom + 14 },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={styles.pill}>
+            <Text style={styles.pillTxt}>{displayPage} / {totalPages}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ═══ TOP BAR ══════════════════════════════════════════════════════ */}
+      {uiVisible && (
+        <View
+          style={[
+            styles.topBar,
+            { paddingTop: insets.top + 2 },
+          ]}
+        >
+          {/* Back button */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.iconBtn}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </TouchableOpacity>
+
+          {/* Title */}
+          <View style={styles.topTitleBlock}>
+            <Text numberOfLines={1} style={styles.topChapter}>
+              {chapter.title ? chapter.title : `Chapter ${chapter.number}`}
+            </Text>
+            <Text numberOfLines={1} style={styles.topSource}>{sourceName}</Text>
+          </View>
+
+          {/* Mode badge */}
+          <View style={styles.badge}>
+            <MaterialCommunityIcons
+              name={
+                isVertical ? 'arrow-expand-vertical'
+                : isRTL     ? 'arrow-left-bold'
+                :             'arrow-right-bold'
+              }
+              size={13}
+              color="rgba(255,255,255,0.75)"
+            />
+            <Text style={styles.badgeTxt}>
+              {isVertical ? 'Webtoon' : isRTL ? 'RTL' : 'LTR'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* ═══ BOTTOM BAR ═══════════════════════════════════════════════════ */}
+      {uiVisible && (
+        <View
+          style={[
+            styles.bottomBar,
+            { paddingBottom: insets.bottom + 6 },
+          ]}
+        >
+          {/* ─ Page / total ─ */}
+          <Text style={styles.pgLabel}>
+            <Text style={styles.pgCurrent}>{displayPage}</Text>
+            <Text style={styles.pgSep}> / {totalPages}</Text>
+          </Text>
+
+          {/* ─ Scrubber row ─ */}
+          <View style={styles.scrubRow}>
+            {/* Prev chapter */}
+            <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
+              <Ionicons name="play-skip-back" size={20} color="rgba(255,255,255,0.65)" />
             </TouchableOpacity>
 
-            <View style={styles.topBarCenter}>
-              <ThemedText
-                variant="default"
-                numberOfLines={1}
-                style={{ fontWeight: "600", fontSize: sizes.text }}
-              >
-                {chapter.displayLabel || `Chapter ${chapter.number}`}
-              </ThemedText>
-            </View>
-
-            <View
-              style={[
-                styles.modeBadge,
-                { backgroundColor: colors.accent + "33" },
-              ]}
+            {/* Track */}
+            <Pressable
+              style={styles.scrubTrack}
+              onLayout={onScrubLayout}
+              onPress={onScrubPress}
             >
-              <ThemedText
-                variant="accent"
-                style={{ fontSize: 10, fontWeight: "bold" }}
-              >
-                {readingMode.toUpperCase()}
-              </ThemedText>
-            </View>
-          </Animated.View>
-        )}
+              <View style={styles.trackBg} />
+              <View style={[styles.trackFill, {
+                width: `${sliderPct * 100}%`,
+                backgroundColor: colors.accent,
+              }]} />
+              <View style={[styles.thumb, {
+                left: `${sliderPct * 100}%`,
+                backgroundColor: colors.accent,
+              }]} />
+            </Pressable>
 
-        {/* Bottom bar */}
-        {controlsVisible && (
-          <Animated.View
-            entering={FadeIn.duration(180)}
-            exiting={FadeOut.duration(180)}
-            style={[
-              styles.bottomBar,
-              {
-                paddingBottom: insets.bottom + 8,
-                backgroundColor: `${colors.surface}E6`,
-              },
-            ]}
-          >
-            <TouchableOpacity
-              onPress={() => prevChapter && goToChapter(prevChapter)}
-              disabled={!prevChapter}
-              style={[
-                styles.chapterNavBtn,
-                {
-                  backgroundColor: colors.surface,
-                  opacity: prevChapter ? 1 : 0.35,
-                },
-              ]}
-            >
-              <Ionicons name="chevron-back" size={18} color={colors.text} />
-              <ThemedText
-                variant="secondary"
-                style={{ fontSize: sizes.sub, marginLeft: 2 }}
-                numberOfLines={1}
-              >
-                {prevChapter ? `Ch.${prevChapter.number}` : "Start"}
-              </ThemedText>
+            {/* Next chapter */}
+            <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
+              <Ionicons name="play-skip-forward" size={20} color="rgba(255,255,255,0.65)" />
+            </TouchableOpacity>
+          </View>
+
+          {/* ─ Prev / chapter title / next ─ */}
+          <View style={styles.navRow}>
+            <TouchableOpacity style={styles.navBtn} onPress={tapPrev}>
+              <Ionicons
+                name={isRTL ? 'chevron-forward' : 'chevron-back'}
+                size={26}
+                color={currentPage === 0 ? 'rgba(255,255,255,0.25)' : '#fff'}
+              />
             </TouchableOpacity>
 
-            <View style={styles.pageIndicator}>
-              <ThemedText
-                variant="default"
-                style={{ fontSize: sizes.text, fontWeight: "600" }}
-              >
-                {currentPage + 1}
-              </ThemedText>
-              <ThemedText variant="secondary" style={{ fontSize: sizes.sub }}>
-                {" "}/ {totalPages}
-              </ThemedText>
+            <View style={styles.navCenter}>
+              <Text numberOfLines={1} style={styles.navChapterTxt}>
+                {chapter.title || `Chapter ${chapter.number}`}
+              </Text>
             </View>
 
-            <TouchableOpacity
-              onPress={() => nextChapter && goToChapter(nextChapter)}
-              disabled={!nextChapter}
-              style={[
-                styles.chapterNavBtn,
-                {
-                  backgroundColor: colors.surface,
-                  opacity: nextChapter ? 1 : 0.35,
-                },
-              ]}
-            >
-              <ThemedText
-                variant="secondary"
-                style={{ fontSize: sizes.sub, marginRight: 2 }}
-                numberOfLines={1}
-              >
-                {nextChapter ? `Ch.${nextChapter.number}` : "End"}
-              </ThemedText>
-              <Ionicons name="chevron-forward" size={18} color={colors.text} />
+            <TouchableOpacity style={styles.navBtn} onPress={tapNext}>
+              <Ionicons
+                name={isRTL ? 'chevron-back' : 'chevron-forward'}
+                size={26}
+                color={currentPage === totalPages - 1 ? 'rgba(255,255,255,0.25)' : '#fff'}
+              />
             </TouchableOpacity>
-          </Animated.View>
-        )}
-      </View>
-    </>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "black",
+  fill: { flex: 1 },
+
+  // Loading
+  loadText: {
+    marginTop: 14,
+    fontSize: 14,
+    textAlign: 'center',
   },
-  center: {
+
+  // Error
+  errorBox: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 36,
+    gap: 10,
   },
-  topBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    flexDirection: "row",
-    alignItems: "center",
+  errTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  errBody:  { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  errBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 11,
+    borderRadius: 8,
+    minWidth: 130,
+    alignItems: 'center',
+  },
+  errBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  // Zoom page
+  zoomContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: H,
+  },
+
+  // Tap zones
+  tapLeft:  { position: 'absolute', left: 0,    top: 0, bottom: 0, width: '25%' },
+  tapMid:   { position: 'absolute', left: '25%', right: '25%', top: 0, bottom: 0 },
+  tapRight: { position: 'absolute', right: 0,   top: 0, bottom: 0, width: '25%' },
+
+  // Page pill
+  pillWrap: {
+    position: 'absolute',
+    alignSelf: 'center',
+  },
+  pill: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
     paddingHorizontal: 12,
-    paddingBottom: 10,
-    zIndex: 20,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  pillTxt: { color: '#fff', fontSize: 13, fontWeight: '600' },
+
+  // Top bar
+  topBar: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.70)',
+    gap: 4,
   },
   iconBtn: {
-    padding: 6,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  topBarCenter: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  modeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  topTitleBlock: { flex: 1, gap: 2 },
+  topChapter: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  topSource:  { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
     borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
   },
+  badgeTxt: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '500' },
+
+  // Bottom bar
   bottomBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    zIndex: 20,
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    paddingTop: 12,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(0,0,0,0.70)',
+    gap: 6,
   },
-  pageIndicator: {
-    flexDirection: "row",
-    alignItems: "baseline",
+
+  // Page label
+  pgLabel:   { textAlign: 'center' },
+  pgCurrent: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  pgSep:     { color: 'rgba(255,255,255,0.45)', fontSize: 13 },
+
+  // Scrubber
+  scrubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  chapterNavBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    maxWidth: 120,
+  scrubTrack: {
+    flex: 1,
+    height: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
-  errorBtn: {
-    marginTop: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+  trackBg: {
+    position: 'absolute',
+    left: 4, right: 4,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
+  trackFill: {
+    position: 'absolute',
+    left: 4,
+    height: 3,
+    borderRadius: 2,
+  },
+  thumb: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#fff',
+    marginLeft: -5,        // offset so it sits on top of the fill end
+    top: '50%',
+    marginTop: -9,
+  },
+
+  // Nav row
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 2,
+  },
+  navBtn:        { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  navCenter:     { flex: 1, alignItems: 'center' },
+  navChapterTxt: { color: 'rgba(255,255,255,0.65)', fontSize: 13, textAlign: 'center' },
 });
