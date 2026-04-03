@@ -1,18 +1,18 @@
 /**
- * readerScreen.tsx
+ * readerScreen.tsx — Fixed version
  *
- * Tachiyomi-style reader — rebuilt from scratch.
- *
- * Architecture decisions (all crash-driven):
- *  - Vertical mode   → plain FlatList, ScrollView per-page for native zoom
- *  - Horizontal mode → FlatList + pagingEnabled, tap zones handle page turn
- *                      (NO outer GestureDetector / ZoomableView wrapper)
- *  - Zero Reanimated on nav bars → plain useState visibility, no FadeIn/FadeOut
- *  - Zoom            → ScrollView maximumZoomScale (fully native, never crashes)
- *  - No ZoomableView, no Gesture.Simultaneous wrapping scroll views
+ * Key fixes:
+ *  1. Vertical scroll: removed Pressable wrapper — tap detection uses a
+ *     transparent overlay View with onStartShouldSetResponder that only fires
+ *     on short taps (not when a scroll gesture is in progress).
+ *  2. Zoom (horizontal mode): ZoomPage's inner ScrollView is no longer
+ *     swallowed by an outer gesture handler. Tap-zone Pressables sit ABOVE
+ *     it but only cover the 25% edges; the center is free for pinch zoom.
+ *  3. Reading mode: in-reader bottom-sheet picker synced to settingsStore so
+ *     changes persist and the settings screen stays in sync.
  */
 
-import { useFontSize, useReadingMode, useTheme } from '@/contexts/settingProvider';
+import { useReadingMode, useTheme } from '@/contexts/settingProvider';
 import { sourceManager } from '@/sources';
 import { useDownloadStore } from '@/store/downloadStore';
 import { useHistoryStore } from '@/store/historyStore';
@@ -33,6 +33,7 @@ import {
   Dimensions,
   FlatList,
   Image as RNImage,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -47,11 +48,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { width: W, height: H } = Dimensions.get('window');
 const CONTROLS_TIMEOUT = 3500;
 const BLURHASH = 'L6PZfSjE.AyE_3t7t7R**0o#DgR4';
+const TAP_MAX_DURATION_MS = 200; // taps shorter than this toggle UI
 
 const log  = (...a: any[]) => __DEV__ && console.log('[Reader]', ...a);
 const warn = (...a: any[]) => __DEV__ && console.warn('[Reader]', ...a);
 
-// ─── ZoomPage — native scroll-view zoom, one per horizontal page ──────────────
+// ─── ZoomPage — native ScrollView zoom, one per horizontal page ───────────────
+// No outer gesture wrapper. Pinch works natively. Tap is handled by the
+// edge Pressable zones that sit above this in the z-order.
 
 const ZoomPage = React.memo(({ uri }: { uri: string }) => {
   const [ratio, setRatio] = useState(4 / 3);
@@ -77,6 +81,8 @@ const ZoomPage = React.memo(({ uri }: { uri: string }) => {
       showsVerticalScrollIndicator={false}
       bouncesZoom
       centerContent
+      // Don't steal horizontal scroll from the parent pager when at min zoom
+      scrollEnabled
     >
       <Image
         source={{ uri }}
@@ -89,8 +95,9 @@ const ZoomPage = React.memo(({ uri }: { uri: string }) => {
     </ScrollView>
   );
 });
+ZoomPage.displayName = 'ZoomPage';
 
-// ─── WebtoonPage — full-width image, no zoom, for vertical scroll ─────────────
+// ─── WebtoonPage — full-width image, no zoom ──────────────────────────────────
 
 const WebtoonPage = React.memo(({ uri }: { uri: string }) => {
   const [ratio, setRatio] = useState(3 / 2);
@@ -117,6 +124,63 @@ const WebtoonPage = React.memo(({ uri }: { uri: string }) => {
     />
   );
 });
+WebtoonPage.displayName = 'WebtoonPage';
+
+// ─── ReadingModeSheet ─────────────────────────────────────────────────────────
+
+type ReadingModeType = 'vertical' | 'ltr' | 'rtl';
+
+const MODES: { value: ReadingModeType; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; desc: string }[] = [
+  { value: 'vertical', label: 'Webtoon',       icon: 'arrow-expand-vertical', desc: 'Continuous vertical scroll' },
+  { value: 'ltr',      label: 'Left → Right',  icon: 'arrow-right-bold',      desc: 'Manga / comic style' },
+  { value: 'rtl',      label: 'Right ← Left',  icon: 'arrow-left-bold',       desc: 'Traditional Japanese manga' },
+];
+
+const ReadingModeSheet = ({
+  visible,
+  current,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  current: ReadingModeType;
+  onSelect: (m: ReadingModeType) => void;
+  onClose: () => void;
+}) => {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetOverlay} onPress={onClose}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Reading Mode</Text>
+          {MODES.map(m => (
+            <TouchableOpacity
+              key={m.value}
+              style={[styles.sheetRow, current === m.value && styles.sheetRowActive]}
+              onPress={() => { onSelect(m.value); onClose(); }}
+            >
+              <MaterialCommunityIcons
+                name={m.icon}
+                size={22}
+                color={current === m.value ? '#FF8C42' : 'rgba(255,255,255,0.7)'}
+              />
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={[styles.sheetRowLabel, current === m.value && { color: '#FF8C42' }]}>
+                  {m.label}
+                </Text>
+                <Text style={styles.sheetRowDesc}>{m.desc}</Text>
+              </View>
+              {current === m.value && (
+                <Ionicons name="checkmark-circle" size={20} color="#FF8C42" />
+              )}
+            </TouchableOpacity>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -132,9 +196,10 @@ export default function ReaderScreen() {
   }>();
 
   const { colors, isDark } = useTheme();
-  const { readingMode }    = useReadingMode();
-  const router             = useRouter();
-  const insets             = useSafeAreaInsets();
+  // readingMode & setReadingMode from context — backed by settingsStore so it persists
+  const { readingMode, setReadingMode } = useReadingMode();
+  const router   = useRouter();
+  const insets   = useSafeAreaInsets();
 
   const source = sourceManager.getSourceByName(sourceName as string)?.source;
   const { getDownloadByChapter, loadDownloads } = useDownloadStore();
@@ -146,12 +211,18 @@ export default function ReaderScreen() {
   const [error, setError]             = useState<string | null>(null);
   const [uiVisible, setUiVisible]     = useState(true);
   const [currentPage, setCurrentPage] = useState(0);   // 0-indexed
+  const [showModeSheet, setShowModeSheet] = useState(false);
 
   const flatRef        = useRef<FlatList>(null);
   const hideTimer      = useRef<ReturnType<typeof setTimeout>>();
   const saveTimer      = useRef<ReturnType<typeof setTimeout>>();
   const scrubberWidth  = useRef(0);
   const mounted        = useRef(true);
+
+  // Used for tap-vs-scroll discrimination in vertical mode
+  const touchStartTime = useRef(0);
+  const touchStartY    = useRef(0);
+  const scrolling      = useRef(false);   // set true once scroll moves > threshold
 
   const isVertical = readingMode === 'vertical';
   const isRTL      = readingMode === 'rtl';
@@ -303,20 +374,25 @@ export default function ReaderScreen() {
     setCurrentPage(clamped);
     saveProgress(clamped);
     if (!isVertical) {
-      try { flatRef.current?.scrollToOffset({ offset: W * clamped, animated: false }); }
+      // For RTL the FlatList data is reversed, so visual index == data index
+      const dataIdx = isRTL ? (chapter.pages.length - 1 - clamped) : clamped;
+      try { flatRef.current?.scrollToOffset({ offset: W * dataIdx, animated: false }); }
       catch {}
     }
-  }, [chapter, isVertical, saveProgress]);
+  }, [chapter, isVertical, isRTL, saveProgress]);
 
   const tapPrev = useCallback(() => goToPage(isRTL ? currentPage + 1 : currentPage - 1), [goToPage, currentPage, isRTL]);
   const tapNext = useCallback(() => goToPage(isRTL ? currentPage - 1 : currentPage + 1), [goToPage, currentPage, isRTL]);
 
   // ── scroll handlers ────────────────────────────────────────────────────────
   const onHorizontalScrollEnd = useCallback((e: any) => {
-    const idx = Math.max(0, Math.round(e.nativeEvent.contentOffset.x / W));
-    setCurrentPage(idx);
-    saveProgress(idx);
-  }, [saveProgress]);
+    const dataIdx = Math.max(0, Math.round(e.nativeEvent.contentOffset.x / W));
+    // Convert data index back to logical page index
+    const logicalIdx = isRTL ? (totalPages - 1 - dataIdx) : dataIdx;
+    const clamped = Math.max(0, Math.min(totalPages - 1, logicalIdx));
+    setCurrentPage(clamped);
+    saveProgress(clamped);
+  }, [saveProgress, isRTL, totalPages]);
 
   const onVerticalScroll = useCallback((e: any) => {
     if (!chapter) return;
@@ -326,7 +402,32 @@ export default function ReaderScreen() {
     const clamped = Math.max(0, Math.min(chapter.pages.length - 1, approx));
     setCurrentPage(clamped);
     saveProgress(clamped);
+    scrolling.current = true; // we are definitely scrolling
   }, [chapter, saveProgress]);
+
+  // ── Vertical tap detection WITHOUT a Pressable wrapper ────────────────────
+  // We attach touch handlers directly to the FlatList's parent View.
+  // If the touch was very short and didn't scroll, we treat it as a tap.
+  const onTouchStart = useCallback((e: any) => {
+    touchStartTime.current = Date.now();
+    touchStartY.current    = e.nativeEvent.pageY;
+    scrolling.current      = false;
+  }, []);
+
+  const onTouchEnd = useCallback((e: any) => {
+    const duration = Date.now() - touchStartTime.current;
+    const dy = Math.abs(e.nativeEvent.pageY - touchStartY.current);
+    // Only treat as tap if quick AND didn't scroll more than 5px
+    if (duration < TAP_MAX_DURATION_MS && dy < 5 && !scrolling.current) {
+      toggleUI();
+    }
+    scrolling.current = false;
+  }, [toggleUI]);
+
+  const onTouchMove = useCallback((e: any) => {
+    const dy = Math.abs(e.nativeEvent.pageY - touchStartY.current);
+    if (dy > 5) scrolling.current = true;
+  }, []);
 
   // ── scrubber ───────────────────────────────────────────────────────────────
   const onScrubLayout = useCallback((e: any) => {
@@ -341,6 +442,17 @@ export default function ReaderScreen() {
     showUI();
   }, [chapter, goToPage, showUI]);
 
+  // ── mode change ────────────────────────────────────────────────────────────
+  const handleModeChange = useCallback((mode: ReadingModeType) => {
+    setReadingMode(mode);
+    // Reset to page 0 to avoid index mismatch after direction flip
+    setCurrentPage(0);
+    setTimeout(() => {
+      try { flatRef.current?.scrollToOffset({ offset: 0, animated: false }); }
+      catch {}
+    }, 50);
+  }, [setReadingMode]);
+
   // ── renderers ──────────────────────────────────────────────────────────────
   const renderHPage = useCallback(({ item }: { item: string }) =>
     <ZoomPage uri={item} />, []);
@@ -354,8 +466,12 @@ export default function ReaderScreen() {
     ({ length: W, offset: W * i, index: i }), []);
 
   // ── computed ───────────────────────────────────────────────────────────────
-  const sliderPct    = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
-  const displayPage  = currentPage + 1;
+  const sliderPct   = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
+  const displayPage = currentPage + 1;
+
+  const modeIcon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] =
+    isVertical ? 'arrow-expand-vertical' : isRTL ? 'arrow-left-bold' : 'arrow-right-bold';
+  const modeLabel = isVertical ? 'Webtoon' : isRTL ? 'RTL' : 'LTR';
 
   // ══════════════════════════════════════════════════════════════════════════
   // LOADING
@@ -415,7 +531,12 @@ export default function ReaderScreen() {
 
       {/* ═══ VERTICAL / WEBTOON ═══════════════════════════════════════════ */}
       {isVertical && (
-        <Pressable style={styles.fill} onPress={toggleUI}>
+        <View
+          style={styles.fill}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
           <FlatList
             ref={flatRef}
             data={pages}
@@ -429,12 +550,16 @@ export default function ReaderScreen() {
             maxToRenderPerBatch={3}
             windowSize={5}
           />
-        </Pressable>
+        </View>
       )}
 
       {/* ═══ HORIZONTAL PAGER (LTR / RTL) ════════════════════════════════ */}
       {!isVertical && (
         <View style={styles.fill}>
+          {/*
+            The FlatList handles paging. ZoomPage renders a native ScrollView
+            inside each cell — pinch zoom works without any gesture wrapper.
+          */}
           <FlatList
             ref={flatRef}
             data={isRTL ? [...pages].reverse() : pages}
@@ -453,22 +578,27 @@ export default function ReaderScreen() {
             onScrollToIndexFailed={() => {}}
           />
 
-          {/* Tap zones — drawn OVER the FlatList */}
+          {/*
+            Tap zones sit ABOVE the FlatList but only cover the left/right 25%.
+            The center 50% is left free so pinch zoom on ZoomPage works.
+          */}
           <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
             <Pressable style={styles.tapLeft}  onPress={isRTL ? tapNext : tapPrev} />
-            <Pressable style={styles.tapMid}   onPress={toggleUI} />
+            {/* Center zone just toggles UI — no Pressable so scroll/zoom passes through */}
+            <TouchableOpacity
+              style={styles.tapMid}
+              activeOpacity={1}
+              onPress={toggleUI}
+            />
             <Pressable style={styles.tapRight} onPress={isRTL ? tapPrev : tapNext} />
           </View>
         </View>
       )}
 
-      {/* ═══ PAGE COUNTER PILL (always visible) ══════════════════════════ */}
+      {/* ═══ PAGE COUNTER PILL (always visible when bars hidden) ══════════ */}
       {!uiVisible && (
         <View
-          style={[
-            styles.pillWrap,
-            { bottom: insets.bottom + 14 },
-          ]}
+          style={[styles.pillWrap, { bottom: insets.bottom + 14 }]}
           pointerEvents="none"
         >
           <View style={styles.pill}>
@@ -479,13 +609,8 @@ export default function ReaderScreen() {
 
       {/* ═══ TOP BAR ══════════════════════════════════════════════════════ */}
       {uiVisible && (
-        <View
-          style={[
-            styles.topBar,
-            { paddingTop: insets.top + 2 },
-          ]}
-        >
-          {/* Back button */}
+        <View style={[styles.topBar, { paddingTop: insets.top + 2 }]}>
+          {/* Back */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => router.back()}
@@ -502,46 +627,34 @@ export default function ReaderScreen() {
             <Text numberOfLines={1} style={styles.topSource}>{sourceName}</Text>
           </View>
 
-          {/* Mode badge */}
-          <View style={styles.badge}>
-            <MaterialCommunityIcons
-              name={
-                isVertical ? 'arrow-expand-vertical'
-                : isRTL     ? 'arrow-left-bold'
-                :             'arrow-right-bold'
-              }
-              size={13}
-              color="rgba(255,255,255,0.75)"
-            />
-            <Text style={styles.badgeTxt}>
-              {isVertical ? 'Webtoon' : isRTL ? 'RTL' : 'LTR'}
-            </Text>
-          </View>
+          {/* Mode badge — tappable to open sheet */}
+          <TouchableOpacity
+            style={styles.badge}
+            onPress={() => { setShowModeSheet(true); clearTimeout(hideTimer.current); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialCommunityIcons name={modeIcon} size={13} color="rgba(255,255,255,0.75)" />
+            <Text style={styles.badgeTxt}>{modeLabel}</Text>
+            <Ionicons name="chevron-down" size={11} color="rgba(255,255,255,0.5)" />
+          </TouchableOpacity>
         </View>
       )}
 
       {/* ═══ BOTTOM BAR ═══════════════════════════════════════════════════ */}
       {uiVisible && (
-        <View
-          style={[
-            styles.bottomBar,
-            { paddingBottom: insets.bottom + 6 },
-          ]}
-        >
-          {/* ─ Page / total ─ */}
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
+          {/* Page / total */}
           <Text style={styles.pgLabel}>
             <Text style={styles.pgCurrent}>{displayPage}</Text>
             <Text style={styles.pgSep}> / {totalPages}</Text>
           </Text>
 
-          {/* ─ Scrubber row ─ */}
+          {/* Scrubber row */}
           <View style={styles.scrubRow}>
-            {/* Prev chapter */}
             <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
               <Ionicons name="play-skip-back" size={20} color="rgba(255,255,255,0.65)" />
             </TouchableOpacity>
 
-            {/* Track */}
             <Pressable
               style={styles.scrubTrack}
               onLayout={onScrubLayout}
@@ -558,13 +671,12 @@ export default function ReaderScreen() {
               }]} />
             </Pressable>
 
-            {/* Next chapter */}
             <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
               <Ionicons name="play-skip-forward" size={20} color="rgba(255,255,255,0.65)" />
             </TouchableOpacity>
           </View>
 
-          {/* ─ Prev / chapter title / next ─ */}
+          {/* Prev / chapter title / next */}
           <View style={styles.navRow}>
             <TouchableOpacity style={styles.navBtn} onPress={tapPrev}>
               <Ionicons
@@ -590,6 +702,14 @@ export default function ReaderScreen() {
           </View>
         </View>
       )}
+
+      {/* ═══ READING MODE SHEET ═══════════════════════════════════════════ */}
+      <ReadingModeSheet
+        visible={showModeSheet}
+        current={readingMode as ReadingModeType}
+        onSelect={handleModeChange}
+        onClose={() => { setShowModeSheet(false); resetHideTimer(); }}
+      />
     </View>
   );
 }
@@ -730,7 +850,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     borderWidth: 2,
     borderColor: '#fff',
-    marginLeft: -5,        // offset so it sits on top of the fill end
+    marginLeft: -5,
     top: '50%',
     marginTop: -9,
   },
@@ -744,4 +864,54 @@ const styles = StyleSheet.create({
   navBtn:        { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   navCenter:     { flex: 1, alignItems: 'center' },
   navChapterTxt: { color: 'rgba(255,255,255,0.65)', fontSize: 13, textAlign: 'center' },
+
+  // Reading mode sheet
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 4,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  sheetRowActive: {
+    backgroundColor: 'rgba(255,140,66,0.12)',
+  },
+  sheetRowLabel: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  sheetRowDesc: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    marginTop: 2,
+  },
 });

@@ -197,7 +197,7 @@ export default function Downloads() {
       <FlatList
         data={getDisplayDownloads()}
         renderItem={renderDownloadItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => `${item.mangaUrl}`}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl

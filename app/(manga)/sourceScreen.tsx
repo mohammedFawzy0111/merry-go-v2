@@ -228,7 +228,7 @@ export default function SourceScreen() {
               }
             />
           )}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => `${item.source.name}-${item.name}`}
           numColumns={numColumns}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}

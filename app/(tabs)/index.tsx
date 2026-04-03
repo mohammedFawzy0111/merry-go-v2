@@ -186,7 +186,7 @@ export default function Home() {
             }}
           />
         )}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => `${item.source.name}-${item.name}`}
         numColumns={numColumns}
         columnWrapperStyle={[
           styles.columnWrapper,

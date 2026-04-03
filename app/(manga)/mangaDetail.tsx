@@ -534,7 +534,7 @@ const handleDownloadAll = async () => {
         ListHeaderComponent={renderHeader}
         data={displayedChapters}
         renderItem={renderItem}
-        keyExtractor={(item) => item.url}
+        keyExtractor={(item) => `${item.url}-${item.language}-${item.title}`}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled" 
         initialNumToRender={12}
