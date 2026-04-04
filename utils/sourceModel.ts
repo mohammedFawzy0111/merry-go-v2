@@ -97,7 +97,6 @@ export class Manga {
   /** User-written notes. */
   userNotes?: string;
   /** Number of chapters the user has read. */
-  readCount: number;
 
   constructor(params: {
     id: string;
@@ -143,15 +142,9 @@ export class Manga {
     this.dateAdded = params.dateAdded;
     this.userRating = params.userRating;
     this.userNotes = params.userNotes;
-    this.readCount = params.readCount ?? 0;
   }
 
-  /** Convenience getter: unread chapters count. */
-  get unreadCount(): number {
-    return Math.max(0, this.chapters.length - this.readCount);
-  }
 }
-
 // ---------------------------------------------------------------------------
 // Chapter
 // ---------------------------------------------------------------------------

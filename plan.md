@@ -28,7 +28,7 @@
   `${sourceName}-${item.url}`
 - Prevents flickering on re-render
 
-**Effort:** Low
+**Effort:** Low [done]
 
 ---
 
@@ -263,9 +263,9 @@
 
 - P1 — remove imageCache.ts entirely, expo-image handles it already [done]
 
-- P3 — fix FlatList key stability to kill the infinite-scroll flicker
+- P3 — fix FlatList key stability to kill the infinite-scroll flicker [done]
 
-- U2 — read state on chapter cards; the DB already tracks it, just not shown
+- U2 — read state on chapter cards; the DB already tracks it, just not shown [done]
 
 - U7 — wire the open button in Downloads; the reader already handles offline pages
 

@@ -10,7 +10,7 @@ import { useMangaStore } from "@/store/mangaStore";
 import { formatDateString } from "@/utils/formatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Image as ExpoImage } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -43,19 +43,19 @@ const ChapterCard = React.memo(
     downloadsByChapter: Map<string, any>;
   }) => {
     const { colors } = useTheme();
+    const { sizes } = useFontSize();
     const {
       addToDownloadQueue,
       removeDownload,
     } = useDownloadStore();
 
-    // O(1) map lookup instead of O(n) Array.find on every render
     const chapterDownload = downloadsByChapter.get(chapter.url);
     const downloadStatus = chapterDownload?.status;
     const downloadProgress = chapterDownload?.progress || 0;
 
     const handleDownloadPress = async () => {
-      if(downloadStatus === 'pending' || downloadStatus === 'downloading'){
-        if(chapterDownload){
+      if (downloadStatus === 'pending' || downloadStatus === 'downloading') {
+        if (chapterDownload) {
           await removeDownload(chapterDownload.id);
         }
       } else {
@@ -64,78 +64,116 @@ const ChapterCard = React.memo(
     };
 
     const getDownloadIcon = () => {
-      switch(downloadStatus){
+      switch (downloadStatus) {
         case 'pending':
-          return(
-            <View style={[styles.downloadProgress, {backgroundColor: colors.surface,borderColor: colors.border}]}>
-              <MaterialIcons name="schedule" size={16} color={colors.textSecondary} onPress={handleDownloadPress}/>
+          return (
+            <View style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <MaterialIcons name="schedule" size={16} color={colors.textSecondary} onPress={handleDownloadPress} />
             </View>
           );
-          case 'downloading':
-            return (
-              <View style={styles.downloadProgressContainer}>
-                <View style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <MaterialIcons 
-                    name="close" 
-                    size={16} 
-                    color={colors.error} 
-                    onPress={handleDownloadPress}
+        case 'downloading':
+          return (
+            <View style={styles.downloadProgressContainer}>
+              <View style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <MaterialIcons
+                  name="close"
+                  size={16}
+                  color={colors.error}
+                  onPress={handleDownloadPress}
+                />
+                <View style={[styles.progressRing, { borderColor: colors.accent }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        transform: [{ rotate: `${-90 + (downloadProgress * 3.6)}deg` }],
+                        backgroundColor: colors.accent,
+                      }
+                    ]}
                   />
-                  <View style={[styles.progressRing, { borderColor: colors.accent }]}>
-                    <View 
-                      style={[
-                        styles.progressFill,
-                        { 
-                          transform: [{ rotate: `${-90 + (downloadProgress * 3.6)}deg` }],
-                          backgroundColor: colors.accent,
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <ThemedText variant="secondary" style={styles.progressText}>
-                    {Math.round(downloadProgress)}%
-                  </ThemedText>
                 </View>
+                <ThemedText variant="secondary" style={styles.progressText}>
+                  {Math.round(downloadProgress)}%
+                </ThemedText>
               </View>
-            );
-          case 'done':
-            return (
-              <View style={[styles.downloadProgress, { backgroundColor: colors.success, borderColor: colors.border }]}>
-                <MaterialIcons name="check" size={16} color="#fff" />
-              </View>
-            );
-          case 'error':
-            return (
-              <View style={[styles.downloadProgress, { backgroundColor: colors.error, borderColor: colors.border }]}>
-                <MaterialIcons name="error" size={16} color="#fff" />
-              </View>
-            );
-          default:
-            return (
-              <TouchableOpacity 
-                onPress={handleDownloadPress}
-                style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border}]}
-              >
-                <MaterialIcons name="file-download" size={16} color={colors.text} />
-              </TouchableOpacity>
-            );
+            </View>
+          );
+        case 'done':
+          return (
+            <View style={[styles.downloadProgress, { backgroundColor: colors.success, borderColor: colors.border }]}>
+              <MaterialIcons name="check" size={16} color="#fff" />
+            </View>
+          );
+        case 'error':
+          return (
+            <View style={[styles.downloadProgress, { backgroundColor: colors.error, borderColor: colors.border }]}>
+              <MaterialIcons name="error" size={16} color="#fff" />
+            </View>
+          );
+        default:
+          return (
+            <TouchableOpacity
+              onPress={handleDownloadPress}
+              style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <MaterialIcons name="file-download" size={16} color={colors.text} />
+            </TouchableOpacity>
+          );
       }
-    }
+    };
+
+    // ── Read state styles ──────────────────────────────────────────────────
+    // Left border: accent colour = unread, muted border = read
+    // Text: full opacity = unread, dimmed = read
+    const readBorderColor = chapter.isRead ? colors.border : colors.accent;
+    const textOpacity = chapter.isRead ? 0.45 : 1;
+
     return (
-      <ThemedView variant="surface" style={[styles.chapterCardContainer, style]}>
-        <TouchableOpacity onPress={() => onPressUrl(chapter.url)} style={styles.chapterInfo}>
-            <ThemedView style={styles.col}>
-              <ThemedText variant="secondary">{chapter.number}</ThemedText>
-            </ThemedView>
-            <ThemedView style={styles.col}>
-              {chapter.title && (
-                <ThemedText variant="default">{chapter.title}</ThemedText>
-              )}
-              <ThemedText variant="subtitle">
-                {formatDateString(chapter.publishedAt)}
+      <ThemedView
+        variant="surface"
+        style={[
+          styles.chapterCardContainer,
+          style,
+          // Left accent bar encodes read state
+          { borderLeftColor: readBorderColor, borderLeftWidth: 3 },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => onPressUrl(chapter.url)}
+          style={styles.chapterInfo}
+        >
+          <ThemedView style={styles.col}>
+            <ThemedText
+              variant="secondary"
+              style={{ opacity: textOpacity, fontSize: sizes.text }}
+            >
+              {chapter.number}
+            </ThemedText>
+          </ThemedView>
+
+          <ThemedView style={[styles.col, { alignItems: 'flex-start', flex: 1 }]}>
+            {chapter.title ? (
+              <ThemedText
+                variant="default"
+                style={{ opacity: textOpacity, fontSize: sizes.text }}
+              >
+                {chapter.title}
               </ThemedText>
-            </ThemedView>
+            ) : null}
+            <ThemedText variant="subtitle" style={{ fontSize: sizes.sub }}>
+              {formatDateString(chapter.publishedAt)}
+            </ThemedText>
+            {chapter.isRead && (
+              <ThemedText
+                variant="secondary"
+                style={{ fontSize: sizes.sub, opacity: 0.5, marginTop: 1 }}
+              >
+                Read
+              </ThemedText>
+            )}
+          </ThemedView>
         </TouchableOpacity>
+
         <View style={styles.downloadButton}>
           {getDownloadIcon()}
         </View>
@@ -149,12 +187,10 @@ export default function MangaDetails() {
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const { mangas, addManga, removeManga, getMangaByUrl } = useMangaStore();
-  const { addToDownloadQueue, downloads, downloadsByChapter, loadDownloads } = useDownloadStore();
+  const { addToDownloadQueue, downloads, downloadsByChapter } = useDownloadStore();
   const { categories, loadCategories } = useCategoryStore();
   const router = useRouter();
   const source = sourceManager.getSourceByName(sourceName as string)?.source;
-  // Track whether this manga url has been fetched this mount so adding to library
-  // doesn't re-trigger a network fetch.
   const hasFetchedRef = useRef(false);
 
   const [manga, setManga] = useState<Manga>(
@@ -178,8 +214,24 @@ export default function MangaDetails() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('default');
 
+  // Local read-state tracker so UI updates instantly without a full reload.
+  // Key = chapter URL, Value = true when read.
+  const [readMap, setReadMap] = useState<Record<string, boolean>>({});
+
+  useFocusEffect(
+    useCallback(() => {
+      // Re-seed readMap from DB so chapters marked read in the reader are reflected
+      getMangaByUrl(mangaUrl as string).then(m => {
+        if (!m) return;
+        const updated: Record<string, boolean> = {};
+        m.chapters.forEach(ch => { updated[ch.url] = ch.isRead; });
+        setReadMap(updated);
+      });
+    }, [mangaUrl])
+  );
+
   const categoryOptions: DropdownOption<string>[] = useMemo(() => [
-    {value: 'default', label: 'All'},
+    { value: 'default', label: 'All' },
     ...categories.map(cat => ({
       value: cat.id,
       label: cat.name
@@ -187,11 +239,11 @@ export default function MangaDetails() {
   ], [categories]);
 
   useEffect(() => {
-    const loadCats = async() => {
+    const loadCats = async () => {
       await loadCategories();
-    }
-    loadCats()
-  },[]);
+    };
+    loadCats();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,12 +254,24 @@ export default function MangaDetails() {
       try {
         const existingManga = await getMangaByUrl(mangaUrl as string);
         if (existingManga) {
-          if (!cancelled) { setManga(existingManga); hasFetchedRef.current = true; }
+          if (!cancelled) {
+            setManga(existingManga);
+            // Seed the readMap from whatever is already stored
+            const initial: Record<string, boolean> = {};
+            existingManga.chapters.forEach(ch => {
+              initial[ch.url] = ch.isRead;
+            });
+            setReadMap(initial);
+            hasFetchedRef.current = true;
+          }
           return;
         }
         if (!source) return;
         const data = await source.fetchMangaDetails(mangaUrl as string);
-        if (!cancelled) { setManga(data); hasFetchedRef.current = true; }
+        if (!cancelled) {
+          setManga(data);
+          hasFetchedRef.current = true;
+        }
       } catch (error) {
         ToastAndroid.show(`Failed to load manga: ${error}`, ToastAndroid.LONG);
         console.error(`Error fetching ${mangaUrl} manga:`, error);
@@ -218,7 +282,6 @@ export default function MangaDetails() {
 
     loadMangaData();
     return () => { cancelled = true; };
-  // Only re-fetch when the URL or source itself changes — NOT when mangas changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, mangaUrl]);
 
@@ -226,91 +289,101 @@ export default function MangaDetails() {
     setIsBookmarked(mangas.some((item) => item.url === manga.url));
   }, [mangas, manga.url]);
 
-  // loadDownloads is already called via the destructured hook above
-
+  // ── Navigate to chapter, mark as read, update local readMap ───────────────
   const handleGoToChapter = useCallback(
-    (url: string) => {
+    (url: string)  => {
+      // Optimistic UI update so the card dims instantly on back-navigation
+      setReadMap(prev => ({ ...prev, [url]: true }));
+
       router.navigate({
         pathname: "/(manga)/readerScreen",
         params: { chapterUrl: url, sourceName, mangaUrl: manga.url },
       });
     },
-    [router, sourceName]
+    [router, sourceName, manga.url]
   );
 
   const toggleReverse = useCallback(() => setIsReversed((v) => !v), []);
-  const toggleBookmark = async() => {
-  try {
-    if(isBookmarked){
-      await removeManga(manga.url);
-      setIsBookmarked(false);
-      ToastAndroid.show('Removed from library', ToastAndroid.SHORT);
-    } else {
-      setShowCategoryModal(true);
+
+  const toggleBookmark = async () => {
+    try {
+      if (isBookmarked) {
+        await removeManga(manga.url);
+        setIsBookmarked(false);
+        ToastAndroid.show('Removed from library', ToastAndroid.SHORT);
+      } else {
+        setShowCategoryModal(true);
+      }
+    } catch (error) {
+      ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
+      console.error('Bookmark toggle error:', error);
     }
-  } catch (error) {
-    ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
-    console.error('Bookmark toggle error:', error);
-  }
-}
+  };
 
-const handleAddWithCategory = async (categoryId: string) =>{
-  try {
-    const mangaWithCat = {...manga, category: categoryId};
-    await addManga(mangaWithCat);
-    setIsBookmarked(true);
-    setShowCategoryModal(false);
-    ToastAndroid.show(`Added to ${getCategoryName(categoryId)}`, ToastAndroid.SHORT)
-  } catch (error) {
-    ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
-    console.error('Bookmark toggle error:', error);
-  }
-}
+  const handleAddWithCategory = async (categoryId: string) => {
+    try {
+      const mangaWithCat = { ...manga, category: categoryId };
+      await addManga(mangaWithCat);
+      setIsBookmarked(true);
+      setShowCategoryModal(false);
+      ToastAndroid.show(`Added to ${getCategoryName(categoryId)}`, ToastAndroid.SHORT);
+    } catch (error) {
+      ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
+      console.error('Bookmark toggle error:', error);
+    }
+  };
 
-const getCategoryName = (id: string) => {
-  const category = categories.find(cat => cat.id === id);
-  return category? category.name : 'All';
-}
+  const getCategoryName = (id: string) => {
+    const category = categories.find(cat => cat.id === id);
+    return category ? category.name : 'All';
+  };
 
-// refreshing fuction
-const onRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       if (!source) return;
       const data = await source.fetchMangaDetails(mangaUrl as string);
       setManga(data);
+      // Re-seed readMap on refresh
+      const refreshed: Record<string, boolean> = {};
+      data.chapters.forEach(ch => { refreshed[ch.url] = ch.isRead; });
+      setReadMap(refreshed);
     } catch (error) {
       ToastAndroid.show(`Failed to refresh manga: ${error}`, ToastAndroid.LONG);
     } finally {
       setRefreshing(false);
     }
-}, [source, mangaUrl]);
+  }, [source, mangaUrl]);
 
-const handleDownloadAll = async () => {
-  try {
-    for (const chapter of manga.chapters) {
-      const existingDownload = downloads.find(d => d.chapterUrl === chapter.url);
-      if (!existingDownload) {
-        await addToDownloadQueue(manga.url, chapter.url, chapter.title, manga.name);
+  const handleDownloadAll = async () => {
+    try {
+      for (const chapter of manga.chapters) {
+        const existingDownload = downloads.find(d => d.chapterUrl === chapter.url);
+        if (!existingDownload) {
+          await addToDownloadQueue(manga.url, chapter.url, chapter.title, manga.name);
+        }
       }
+      ToastAndroid.show('Added all chapters to download queue', ToastAndroid.SHORT);
+    } catch (error) {
+      ToastAndroid.show('Failed to add chapters to download', ToastAndroid.LONG);
+      console.error('Download all error:', error);
     }
-    ToastAndroid.show('Added all chapters to download queue', ToastAndroid.SHORT);
-  } catch (error) {
-    ToastAndroid.show('Failed to add chapters to download', ToastAndroid.LONG);
-    console.error('Download all error:', error);
-  }
-};
+  };
 
   const displayedChapters = useMemo(() => {
-    // Deduplicate by url first (sources occasionally return the same chapter twice)
     const seen = new Set<string>();
     const unique = manga.chapters.filter(ch => {
       if (seen.has(ch.url)) return false;
       seen.add(ch.url);
       return true;
     });
-    return isReversed ? [...unique].reverse() : unique;
-  }, [manga.chapters, isReversed]);
+    // Merge optimistic readMap into chapters so ChapterCard sees current state
+    const withReadState = unique.map(ch => ({
+      ...ch,
+      isRead: readMap[ch.url] ?? ch.isRead,
+    }));
+    return isReversed ? [...withReadState].reverse() : withReadState;
+  }, [manga.chapters, isReversed, readMap]);
 
   const renderHeader = useCallback(() => {
     return (
@@ -370,13 +443,12 @@ const handleDownloadAll = async () => {
           </View>
         </ThemedView>
 
-
-        {/* rating and add to library button */}
+        {/* Rating and add to library button */}
         <ThemedView variant="surface" style={[styles.libContainer, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.addToLib, 
-              { 
+              styles.addToLib,
+              {
                 backgroundColor: isBookmarked ? colors.accent : 'transparent',
                 borderColor: colors.border,
                 borderWidth: 2,
@@ -385,30 +457,26 @@ const handleDownloadAll = async () => {
             ]}
             onPress={toggleBookmark}
           >
-            <Ionicons 
-              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-              size={sizes.heading} 
-              color={isBookmarked ? colors.surface : colors.textSecondary} 
+            <Ionicons
+              name={isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={sizes.heading}
+              color={isBookmarked ? colors.surface : colors.textSecondary}
             />
           </TouchableOpacity>
-          
-          <ThemedView variant="default" style={[styles.ratingContainer, {borderColor:  colors.border}]}>
+
+          <ThemedView variant="default" style={[styles.ratingContainer, { borderColor: colors.border }]}>
             <ThemedText variant="title" style={{ color: colors.accent }}>
-              {`${manga.data.rating ? Math.round(manga.data.rating * 10)/10 : 0}`}
+              {`${manga.data.rating ? Math.round(manga.data.rating * 10) / 10 : 0}`}
             </ThemedText>
-            <Ionicons name='star' color={colors.accent} size={sizes.heading}/>
+            <Ionicons name='star' color={colors.accent} size={sizes.heading} />
             <ThemedText variant="subtitle" style={{ color: colors.textSecondary }}>
               /10
             </ThemedText>
           </ThemedView>
         </ThemedView>
 
-      {/* Details Section */}
-      <ThemedView variant="surface" style={styles.body}>
-          {manga.data.Demographic && (
-            <ThemedText variant="secondary">{`Genre: "${manga.data.Demographic}"`}</ThemedText>
-          )}
-
+        {/* Details Section */}
+        <ThemedView variant="surface" style={styles.body}>
           {manga.data.description && (
             <ThemedText
               variant="secondary"
@@ -450,7 +518,6 @@ const handleDownloadAll = async () => {
           </TouchableOpacity>
         </View>
 
-
         {manga.data.tags && manga.data.tags.length > 0 && (
           <View style={styles.tagsContainer}>
             <FlatList
@@ -458,7 +525,7 @@ const handleDownloadAll = async () => {
               horizontal
               keyExtractor={(item) => `tag-${item}`}
               showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled" 
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
                   onPress={() => {
@@ -468,8 +535,6 @@ const handleDownloadAll = async () => {
                     });
                   }}
                 >
-
-
                   <ThemedView variant="surface" style={styles.tagPill}>
                     <ThemedText variant="subtitle">{item}</ThemedText>
                   </ThemedView>
@@ -485,14 +550,14 @@ const handleDownloadAll = async () => {
             {"Chapters"}
           </ThemedText>
           <View style={styles.chapterActions}>
-            <TouchableOpacity onPress={toggleReverse} style={[styles.actionButton,{backgroundColor: colors.surface}]}>
+            <TouchableOpacity onPress={toggleReverse} style={[styles.actionButton, { backgroundColor: colors.surface }]}>
               <Ionicons
                 name="swap-vertical-sharp"
                 size={sizes.heading}
                 color={colors.text}
               />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDownloadAll} style={[styles.actionButton,{backgroundColor: colors.surface}]}>
+            <TouchableOpacity onPress={handleDownloadAll} style={[styles.actionButton, { backgroundColor: colors.surface }]}>
               <MaterialIcons
                 name="download"
                 size={sizes.heading}
@@ -534,9 +599,9 @@ const handleDownloadAll = async () => {
         ListHeaderComponent={renderHeader}
         data={displayedChapters}
         renderItem={renderItem}
-        keyExtractor={(item) => `${item.url}-${item.language}-${item.title}`}
+        keyExtractor={(item) => item.url}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled" 
+        keyboardShouldPersistTaps="handled"
         initialNumToRender={12}
         maxToRenderPerBatch={12}
         windowSize={10}
@@ -548,12 +613,12 @@ const handleDownloadAll = async () => {
         })}
         contentContainerStyle={styles.contentContainer}
         refreshControl={
-        <RefreshControl
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        colors = {[colors.accent]}
-        />
-      }
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.accent]}
+          />
+        }
       />
 
       <ThemedModal
@@ -568,20 +633,20 @@ const handleDownloadAll = async () => {
               selectedValue={selectedCategory}
               onSelect={setSelectedCategory}
               placeholder="Select category"
-              width='100 %'
+              width='100%'
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, {backgroundColor: colors.surface}]}
+                style={[styles.modalButton, { backgroundColor: colors.surface }]}
                 onPress={() => setShowCategoryModal(false)}
               >
                 <ThemedText>Cancel</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, {backgroundColor: colors.accent}]}
+                style={[styles.modalButton, { backgroundColor: colors.accent }]}
                 onPress={() => handleAddWithCategory(selectedCategory)}
               >
-                <ThemedText style={{color: colors.text}}>Add to Library</ThemedText>
+                <ThemedText style={{ color: colors.text }}>Add to Library</ThemedText>
               </TouchableOpacity>
             </View>
           </ThemedView>
@@ -621,30 +686,30 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   libContainer: {
-  flex: 1,
-  padding: 12,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  borderRadius: 8,
-  marginHorizontal: 16,
-  marginBottom: 16,
-},
-addToLib: {
-  width: 48,
-  height: 48,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-ratingContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 8,
-  borderWidth: 2,
-},
+    flex: 1,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  addToLib: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
   tagsContainer: {
     minHeight: 40,
     width: "100%",
@@ -689,30 +754,29 @@ ratingContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderWidth: 2,
+    borderWidth: 1,
+    borderLeftWidth: 3,       // overridden per-card by read state
     padding: 12,
     marginBottom: 8,
     minHeight: 48,
+    borderRadius: 8,
   },
-  
   chapterInfo: {
     flex: 1,
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 12,
   },
-  
   downloadButton: {
     marginLeft: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  
   downloadProgressContainer: {
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
   downloadProgress: {
     width: 32,
     height: 32,
@@ -721,7 +785,6 @@ ratingContainer: {
     alignItems: 'center',
     borderWidth: 1,
   },
-  
   progressRing: {
     width: 32,
     height: 32,
@@ -733,14 +796,12 @@ ratingContainer: {
     overflow: 'hidden',
     transform: [{ rotate: '-90deg' }],
   },
-  
   progressFill: {
     width: '100%',
     height: '100%',
     position: 'absolute',
     borderRadius: 16,
   },
-  
   progressText: {
     fontSize: 8,
     position: 'absolute',
@@ -755,17 +816,15 @@ ratingContainer: {
     flexDirection: 'row',
     gap: 12,
   },
-  
   actionButton: {
     padding: 8,
     borderRadius: 8,
   },
-
   categoryModalContent: {
     maxHeight: 300,
     padding: 16,
     gap: 16,
-},
+  },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

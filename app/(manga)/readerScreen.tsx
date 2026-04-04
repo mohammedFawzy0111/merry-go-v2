@@ -13,6 +13,7 @@
  */
 
 import { useReadingMode, useTheme } from '@/contexts/settingProvider';
+import { markChapterRead } from '@/db/db';
 import { sourceManager } from '@/sources';
 import { useDownloadStore } from '@/store/downloadStore';
 import { useHistoryStore } from '@/store/historyStore';
@@ -349,6 +350,9 @@ export default function ReaderScreen() {
     saveTimer.current = setTimeout(async () => {
       if (!mounted.current) return;
       const now  = new Date().toISOString();
+      if(page === chapter.pages.length -1){
+        try{ markChapterRead(chapter.url) }catch{}
+      }
       const mUrl = (mangaUrl as string) || chapter.manga;
       const item = {
         mangaUrl: mUrl,
