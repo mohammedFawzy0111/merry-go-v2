@@ -12,23 +12,18 @@
  *     changes persist and the settings screen stays in sync.
  */
 
-import { useReadingMode, useTheme } from '@/contexts/settingProvider';
-import { markChapterRead } from '@/db/db';
-import { sourceManager } from '@/sources';
-import { useDownloadStore } from '@/store/downloadStore';
-import { useHistoryStore } from '@/store/historyStore';
-import { Chapter } from '@/utils/sourceModel';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useReadingMode, useTheme } from "@/contexts/settingProvider";
+import { markChapterRead } from "@/db/db";
+import { sourceManager } from "@/sources";
+import { useDownloadStore } from "@/store/downloadStore";
+import { useHistoryStore } from "@/store/historyStore";
+import { Chapter } from "@/utils/sourceModel";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -41,18 +36,18 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const { width: W, height: H } = Dimensions.get('window');
+const { width: W, height: H } = Dimensions.get("window");
 const CONTROLS_TIMEOUT = 3500;
-const BLURHASH = 'L6PZfSjE.AyE_3t7t7R**0o#DgR4';
+const BLURHASH = "L6PZfSjE.AyE_3t7t7R**0o#DgR4";
 const TAP_MAX_DURATION_MS = 200; // taps shorter than this toggle UI
 
-const log  = (...a: any[]) => __DEV__ && console.log('[Reader]', ...a);
-const warn = (...a: any[]) => __DEV__ && console.warn('[Reader]', ...a);
+const log = (...a: any[]) => __DEV__ && console.log("[Reader]", ...a);
+const warn = (...a: any[]) => __DEV__ && console.warn("[Reader]", ...a);
 
 // ─── ZoomPage — native ScrollView zoom, one per horizontal page ───────────────
 // No outer gesture wrapper. Pinch works natively. Tap is handled by the
@@ -66,10 +61,14 @@ const ZoomPage = React.memo(({ uri }: { uri: string }) => {
     let alive = true;
     RNImage.getSize(
       uri,
-      (w, h) => { if (alive && w > 0 && h > 0) setRatio(h / w); },
+      (w, h) => {
+        if (alive && w > 0 && h > 0) setRatio(h / w);
+      },
       () => {},
     );
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [uri]);
 
   return (
@@ -96,7 +95,7 @@ const ZoomPage = React.memo(({ uri }: { uri: string }) => {
     </ScrollView>
   );
 });
-ZoomPage.displayName = 'ZoomPage';
+ZoomPage.displayName = "ZoomPage";
 
 // ─── WebtoonPage — full-width image, no zoom ──────────────────────────────────
 
@@ -108,10 +107,14 @@ const WebtoonPage = React.memo(({ uri }: { uri: string }) => {
     let alive = true;
     RNImage.getSize(
       uri,
-      (w, h) => { if (alive && w > 0 && h > 0) setRatio(h / w); },
+      (w, h) => {
+        if (alive && w > 0 && h > 0) setRatio(h / w);
+      },
       () => {},
     );
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [uri]);
 
   return (
@@ -125,16 +128,36 @@ const WebtoonPage = React.memo(({ uri }: { uri: string }) => {
     />
   );
 });
-WebtoonPage.displayName = 'WebtoonPage';
+WebtoonPage.displayName = "WebtoonPage";
 
 // ─── ReadingModeSheet ─────────────────────────────────────────────────────────
 
-type ReadingModeType = 'vertical' | 'ltr' | 'rtl';
+type ReadingModeType = "vertical" | "ltr" | "rtl";
 
-const MODES: { value: ReadingModeType; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; desc: string }[] = [
-  { value: 'vertical', label: 'Webtoon',       icon: 'arrow-expand-vertical', desc: 'Continuous vertical scroll' },
-  { value: 'ltr',      label: 'Left → Right',  icon: 'arrow-right-bold',      desc: 'Manga / comic style' },
-  { value: 'rtl',      label: 'Right ← Left',  icon: 'arrow-left-bold',       desc: 'Traditional Japanese manga' },
+const MODES: {
+  value: ReadingModeType;
+  label: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  desc: string;
+}[] = [
+  {
+    value: "vertical",
+    label: "Webtoon",
+    icon: "arrow-expand-vertical",
+    desc: "Continuous vertical scroll",
+  },
+  {
+    value: "ltr",
+    label: "Left → Right",
+    icon: "arrow-right-bold",
+    desc: "Manga / comic style",
+  },
+  {
+    value: "rtl",
+    label: "Right ← Left",
+    icon: "arrow-left-bold",
+    desc: "Traditional Japanese manga",
+  },
 ];
 
 const ReadingModeSheet = ({
@@ -150,24 +173,45 @@ const ReadingModeSheet = ({
 }) => {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]} onPress={() => {}}>
+        <Pressable
+          style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}
+          onPress={() => {}}
+        >
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Reading Mode</Text>
-          {MODES.map(m => (
+          {MODES.map((m) => (
             <TouchableOpacity
               key={m.value}
-              style={[styles.sheetRow, current === m.value && styles.sheetRowActive]}
-              onPress={() => { onSelect(m.value); onClose(); }}
+              style={[
+                styles.sheetRow,
+                current === m.value && styles.sheetRowActive,
+              ]}
+              onPress={() => {
+                onSelect(m.value);
+                onClose();
+              }}
             >
               <MaterialCommunityIcons
                 name={m.icon}
                 size={22}
-                color={current === m.value ? '#FF8C42' : 'rgba(255,255,255,0.7)'}
+                color={
+                  current === m.value ? "#FF8C42" : "rgba(255,255,255,0.7)"
+                }
               />
               <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={[styles.sheetRowLabel, current === m.value && { color: '#FF8C42' }]}>
+                <Text
+                  style={[
+                    styles.sheetRowLabel,
+                    current === m.value && { color: "#FF8C42" },
+                  ]}
+                >
                   {m.label}
                 </Text>
                 <Text style={styles.sheetRowDesc}>{m.desc}</Text>
@@ -186,11 +230,7 @@ const ReadingModeSheet = ({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ReaderScreen() {
-  const {
-    chapterUrl,
-    sourceName,
-    mangaUrl,
-  } = useLocalSearchParams<{
+  const { chapterUrl, sourceName, mangaUrl } = useLocalSearchParams<{
     chapterUrl: string;
     sourceName: string;
     mangaUrl?: string;
@@ -199,34 +239,37 @@ export default function ReaderScreen() {
   const { colors, isDark } = useTheme();
   // readingMode & setReadingMode from context — backed by settingsStore so it persists
   const { readingMode, setReadingMode } = useReadingMode();
-  const router   = useRouter();
-  const insets   = useSafeAreaInsets();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const source = sourceManager.getSourceByName(sourceName as string)?.source;
   const { getDownloadByChapter, loadDownloads } = useDownloadStore();
-  const { addToHistory, updateHistory }         = useHistoryStore();
+  const { addToHistory, updateHistory } = useHistoryStore();
 
   // ── state ──────────────────────────────────────────────────────────────────
-  const [chapter, setChapter]         = useState<Chapter | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
-  const [uiVisible, setUiVisible]     = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);   // 0-indexed
+  const [chapter, setChapter] = useState<Chapter | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [uiVisible, setUiVisible] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0); // 0-indexed
   const [showModeSheet, setShowModeSheet] = useState(false);
 
-  const flatRef        = useRef<FlatList>(null);
-  const hideTimer      = useRef<ReturnType<typeof setTimeout>>();
-  const saveTimer      = useRef<ReturnType<typeof setTimeout>>();
-  const scrubberWidth  = useRef(0);
-  const mounted        = useRef(true);
-
+  const flatRef = useRef<FlatList>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrubberWidth = useRef(0);
+  const mounted = useRef(true);
+  // clear timeout helper
+  const clearT = (t: ReturnType<typeof setTimeout> | null) => {
+    if (t) clearTimeout(t);
+  };
   // Used for tap-vs-scroll discrimination in vertical mode
   const touchStartTime = useRef(0);
-  const touchStartY    = useRef(0);
-  const scrolling      = useRef(false);   // set true once scroll moves > threshold
+  const touchStartY = useRef(0);
+  const scrolling = useRef(false); // set true once scroll moves > threshold
 
-  const isVertical = readingMode === 'vertical';
-  const isRTL      = readingMode === 'rtl';
+  const isVertical = readingMode === "vertical";
+  const isRTL = readingMode === "rtl";
   const totalPages = chapter?.pages.length ?? 0;
 
   // unmount guard
@@ -234,70 +277,86 @@ export default function ReaderScreen() {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      clearTimeout(hideTimer.current);
-      clearTimeout(saveTimer.current);
+      clearT(hideTimer.current);
+      clearT(saveTimer.current);
     };
   }, []);
 
   // ── fetch chapter ──────────────────────────────────────────────────────────
-  const fetchChapter = useCallback(async (url: string) => {
-    if (!mounted.current) return;
-    log('fetch', url);
-    setLoading(true);
-    setError(null);
+  const fetchChapter = useCallback(
+    async (url: string) => {
+      if (!mounted.current) return;
+      log("fetch", url);
+      setLoading(true);
+      setError(null);
 
-    try {
-      // 1. Check completed local download
-      let dl = null;
-      try { dl = await getDownloadByChapter(url); } catch {}
-
-      if (dl?.status === 'done' && dl.localPath) {
+      try {
+        // 1. Check completed local download
+        let dl = null;
         try {
-          const files = await FileSystem.readDirectoryAsync(dl.localPath);
-          const pages = files
-            .filter(f => /^page_\d+\.(jpg|jpeg|png|webp)$/i.test(f))
-            .sort((a, b) => {
-              const n = (s: string) => parseInt(s.match(/\d+/)![0], 10);
-              return n(a) - n(b);
-            })
-            .map(f => `${dl!.localPath}${f}`);
+          dl = await getDownloadByChapter(url);
+        } catch {}
 
-          if (pages.length > 0) {
-            if (mounted.current) {
-              setChapter(new Chapter({
-                manga: dl.mangaUrl, title: dl.chapterTitle,
-                number: 0, url: dl.chapterUrl, pages, isDownloaded: true,
-              }));
+        if (dl?.status === "done" && dl.localPath) {
+          try {
+            const files = await FileSystem.readDirectoryAsync(dl.localPath);
+            const pages = files
+              .filter((f) => /^page_\d+\.(jpg|jpeg|png|webp)$/i.test(f))
+              .sort((a, b) => {
+                const n = (s: string) => parseInt(s.match(/\d+/)![0], 10);
+                return n(a) - n(b);
+              })
+              .map((f) => `${dl!.localPath}${f}`);
+
+            if (pages.length > 0) {
+              if (mounted.current) {
+                setChapter(
+                  new Chapter({
+                    manga: dl.mangaUrl,
+                    title: dl.chapterTitle,
+                    number: 0,
+                    url: dl.chapterUrl,
+                    pages,
+                    isDownloaded: true,
+                  }),
+                );
+              }
+              return;
             }
-            return;
+          } catch (e) {
+            warn("local read error", e);
           }
-        } catch (e) { warn('local read error', e); }
+        }
+
+        // 2. Network
+        if (!source) {
+          if (mounted.current)
+            setError("Source plugin not found. Is it installed?");
+          return;
+        }
+
+        const data = await source.fetchChapterDetails(url);
+
+        if (!data?.pages?.length) {
+          if (mounted.current) setError("This chapter has no pages.");
+          return;
+        }
+
+        if (mounted.current) setChapter(data);
+      } catch (e) {
+        warn("fetchChapter threw", e);
+        if (mounted.current) setError(`Failed to load chapter:\n${String(e)}`);
+      } finally {
+        if (mounted.current) setLoading(false);
       }
-
-      // 2. Network
-      if (!source) {
-        if (mounted.current) setError('Source plugin not found. Is it installed?');
-        return;
-      }
-
-      const data = await source.fetchChapterDetails(url);
-
-      if (!data?.pages?.length) {
-        if (mounted.current) setError('This chapter has no pages.');
-        return;
-      }
-
-      if (mounted.current) setChapter(data);
-    } catch (e) {
-      warn('fetchChapter threw', e);
-      if (mounted.current) setError(`Failed to load chapter:\n${String(e)}`);
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [source, getDownloadByChapter]);
+    },
+    [source, getDownloadByChapter],
+  );
 
   // load downloads index once
-  useEffect(() => { loadDownloads().catch(() => {}); }, []);
+  useEffect(() => {
+    loadDownloads().catch(() => {});
+  }, []);
 
   // re-fetch when URL changes
   useEffect(() => {
@@ -314,15 +373,19 @@ export default function ReaderScreen() {
     if (resume > 0 && resume < chapter.pages.length && !isVertical) {
       setCurrentPage(resume);
       setTimeout(() => {
-        try { flatRef.current?.scrollToOffset({ offset: W * resume, animated: false }); }
-        catch {}
+        try {
+          flatRef.current?.scrollToOffset({
+            offset: W * resume,
+            animated: false,
+          });
+        } catch {}
       }, 80);
     }
   }, [chapter?.url]);
 
   // ── UI auto-hide ───────────────────────────────────────────────────────────
   const resetHideTimer = useCallback(() => {
-    clearTimeout(hideTimer.current);
+    clearT(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       if (mounted.current) setUiVisible(false);
     }, CONTROLS_TIMEOUT);
@@ -335,98 +398,133 @@ export default function ReaderScreen() {
 
   const toggleUI = useCallback(() => {
     if (!mounted.current) return;
-    setUiVisible(v => {
+    setUiVisible((v) => {
       if (!v) resetHideTimer();
       return !v;
     });
   }, [resetHideTimer]);
 
-  useEffect(() => { if (uiVisible) resetHideTimer(); }, [uiVisible]);
+  useEffect(() => {
+    if (uiVisible) resetHideTimer();
+  }, [uiVisible]);
 
   // ── save progress ──────────────────────────────────────────────────────────
-  const saveProgress = useCallback((page: number) => {
-    if (!chapter) return;
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      if (!mounted.current) return;
-      const now  = new Date().toISOString();
-      if(page === chapter.pages.length -1){
-        try{ markChapterRead(chapter.url) }catch{}
-      }
-      const mUrl = (mangaUrl as string) || chapter.manga;
-      const item = {
-        mangaUrl: mUrl,
-        mangaTitle: chapter.title || 'Unknown',
-        chapterUrl: chapter.url,
-        chapterNumber: chapter.number,
-        source: sourceName as string,
-        lastRead: now,
-        page,
-      };
-      try { await addToHistory(item); }
-      catch {
-        try { await updateHistory(mUrl, chapter.url, chapter.number, now, page); }
-        catch {}
-      }
-    }, 500);
-  }, [chapter, mangaUrl, sourceName, addToHistory, updateHistory]);
+  const saveProgress = useCallback(
+    (page: number) => {
+      if (!chapter) return;
+      clearT(saveTimer.current);
+      saveTimer.current = setTimeout(async () => {
+        if (!mounted.current) return;
+        const now = new Date().toISOString();
+        if (page === chapter.pages.length - 1) {
+          try {
+            markChapterRead(chapter.url);
+          } catch {}
+        }
+        const mUrl = (mangaUrl as string) || chapter.manga;
+        const item = {
+          mangaUrl: mUrl,
+          mangaTitle: chapter.title || "Unknown",
+          chapterUrl: chapter.url,
+          chapterNumber: chapter.number,
+          source: sourceName as string,
+          lastRead: now,
+          page,
+        };
+        try {
+          await addToHistory(item);
+        } catch {
+          try {
+            await updateHistory(mUrl, chapter.url, chapter.number, now, page);
+          } catch {}
+        }
+      }, 500);
+    },
+    [chapter, mangaUrl, sourceName, addToHistory, updateHistory],
+  );
 
   // ── page navigation ────────────────────────────────────────────────────────
-  const goToPage = useCallback((idx: number) => {
-    if (!chapter) return;
-    const clamped = Math.max(0, Math.min(chapter.pages.length - 1, idx));
-    setCurrentPage(clamped);
-    saveProgress(clamped);
-    if (!isVertical) {
-      // For RTL the FlatList data is reversed, so visual index == data index
-      const dataIdx = isRTL ? (chapter.pages.length - 1 - clamped) : clamped;
-      try { flatRef.current?.scrollToOffset({ offset: W * dataIdx, animated: false }); }
-      catch {}
-    }
-  }, [chapter, isVertical, isRTL, saveProgress]);
+  const goToPage = useCallback(
+    (idx: number) => {
+      if (!chapter) return;
+      const clamped = Math.max(0, Math.min(chapter.pages.length - 1, idx));
+      setCurrentPage(clamped);
+      saveProgress(clamped);
+      if (!isVertical) {
+        // For RTL the FlatList data is reversed, so visual index == data index
+        const dataIdx = isRTL ? chapter.pages.length - 1 - clamped : clamped;
+        try {
+          flatRef.current?.scrollToOffset({
+            offset: W * dataIdx,
+            animated: false,
+          });
+        } catch {}
+      }
+    },
+    [chapter, isVertical, isRTL, saveProgress],
+  );
 
-  const tapPrev = useCallback(() => goToPage(isRTL ? currentPage + 1 : currentPage - 1), [goToPage, currentPage, isRTL]);
-  const tapNext = useCallback(() => goToPage(isRTL ? currentPage - 1 : currentPage + 1), [goToPage, currentPage, isRTL]);
+  const tapPrev = useCallback(
+    () => goToPage(isRTL ? currentPage + 1 : currentPage - 1),
+    [goToPage, currentPage, isRTL],
+  );
+  const tapNext = useCallback(
+    () => goToPage(isRTL ? currentPage - 1 : currentPage + 1),
+    [goToPage, currentPage, isRTL],
+  );
 
   // ── scroll handlers ────────────────────────────────────────────────────────
-  const onHorizontalScrollEnd = useCallback((e: any) => {
-    const dataIdx = Math.max(0, Math.round(e.nativeEvent.contentOffset.x / W));
-    // Convert data index back to logical page index
-    const logicalIdx = isRTL ? (totalPages - 1 - dataIdx) : dataIdx;
-    const clamped = Math.max(0, Math.min(totalPages - 1, logicalIdx));
-    setCurrentPage(clamped);
-    saveProgress(clamped);
-  }, [saveProgress, isRTL, totalPages]);
+  const onHorizontalScrollEnd = useCallback(
+    (e: any) => {
+      const dataIdx = Math.max(
+        0,
+        Math.round(e.nativeEvent.contentOffset.x / W),
+      );
+      // Convert data index back to logical page index
+      const logicalIdx = isRTL ? totalPages - 1 - dataIdx : dataIdx;
+      const clamped = Math.max(0, Math.min(totalPages - 1, logicalIdx));
+      setCurrentPage(clamped);
+      saveProgress(clamped);
+    },
+    [saveProgress, isRTL, totalPages],
+  );
 
-  const onVerticalScroll = useCallback((e: any) => {
-    if (!chapter) return;
-    const y      = e.nativeEvent.contentOffset.y;
-    const maxY   = e.nativeEvent.contentSize.height - H;
-    const approx = maxY > 0 ? Math.round((y / maxY) * (chapter.pages.length - 1)) : 0;
-    const clamped = Math.max(0, Math.min(chapter.pages.length - 1, approx));
-    setCurrentPage(clamped);
-    saveProgress(clamped);
-    scrolling.current = true; // we are definitely scrolling
-  }, [chapter, saveProgress]);
+  const onVerticalScroll = useCallback(
+    (e: any) => {
+      if (!chapter) return;
+      const y = e.nativeEvent.contentOffset.y;
+      const maxY = e.nativeEvent.contentSize.height - H;
+      const approx =
+        maxY > 0 ? Math.round((y / maxY) * (chapter.pages.length - 1)) : 0;
+      const clamped = Math.max(0, Math.min(chapter.pages.length - 1, approx));
+      setCurrentPage(clamped);
+      saveProgress(clamped);
+      scrolling.current = true; // we are definitely scrolling
+    },
+    [chapter, saveProgress],
+  );
 
   // ── Vertical tap detection WITHOUT a Pressable wrapper ────────────────────
   // We attach touch handlers directly to the FlatList's parent View.
   // If the touch was very short and didn't scroll, we treat it as a tap.
   const onTouchStart = useCallback((e: any) => {
     touchStartTime.current = Date.now();
-    touchStartY.current    = e.nativeEvent.pageY;
-    scrolling.current      = false;
+    touchStartY.current = e.nativeEvent.pageY;
+    scrolling.current = false;
   }, []);
 
-  const onTouchEnd = useCallback((e: any) => {
-    const duration = Date.now() - touchStartTime.current;
-    const dy = Math.abs(e.nativeEvent.pageY - touchStartY.current);
-    // Only treat as tap if quick AND didn't scroll more than 5px
-    if (duration < TAP_MAX_DURATION_MS && dy < 5 && !scrolling.current) {
-      toggleUI();
-    }
-    scrolling.current = false;
-  }, [toggleUI]);
+  const onTouchEnd = useCallback(
+    (e: any) => {
+      const duration = Date.now() - touchStartTime.current;
+      const dy = Math.abs(e.nativeEvent.pageY - touchStartY.current);
+      // Only treat as tap if quick AND didn't scroll more than 5px
+      if (duration < TAP_MAX_DURATION_MS && dy < 5 && !scrolling.current) {
+        toggleUI();
+      }
+      scrolling.current = false;
+    },
+    [toggleUI],
+  );
 
   const onTouchMove = useCallback((e: any) => {
     const dy = Math.abs(e.nativeEvent.pageY - touchStartY.current);
@@ -438,54 +536,74 @@ export default function ReaderScreen() {
     scrubberWidth.current = e.nativeEvent.layout.width;
   }, []);
 
-  const onScrubPress = useCallback((e: any) => {
-    if (!chapter || scrubberWidth.current === 0) return;
-    const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / scrubberWidth.current));
-    const page  = Math.round(ratio * (chapter.pages.length - 1));
-    goToPage(page);
-    showUI();
-  }, [chapter, goToPage, showUI]);
+  const onScrubPress = useCallback(
+    (e: any) => {
+      if (!chapter || scrubberWidth.current === 0) return;
+      const ratio = Math.max(
+        0,
+        Math.min(1, e.nativeEvent.locationX / scrubberWidth.current),
+      );
+      const page = Math.round(ratio * (chapter.pages.length - 1));
+      goToPage(page);
+      showUI();
+    },
+    [chapter, goToPage, showUI],
+  );
 
   // ── mode change ────────────────────────────────────────────────────────────
-  const handleModeChange = useCallback((mode: ReadingModeType) => {
-    setReadingMode(mode);
-    // Reset to page 0 to avoid index mismatch after direction flip
-    setCurrentPage(0);
-    setTimeout(() => {
-      try { flatRef.current?.scrollToOffset({ offset: 0, animated: false }); }
-      catch {}
-    }, 50);
-  }, [setReadingMode]);
+  const handleModeChange = useCallback(
+    (mode: ReadingModeType) => {
+      setReadingMode(mode);
+      // Reset to page 0 to avoid index mismatch after direction flip
+      setCurrentPage(0);
+      setTimeout(() => {
+        try {
+          flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+        } catch {}
+      }, 50);
+    },
+    [setReadingMode],
+  );
 
   // ── renderers ──────────────────────────────────────────────────────────────
-  const renderHPage = useCallback(({ item }: { item: string }) =>
-    <ZoomPage uri={item} />, []);
+  const renderHPage = useCallback(
+    ({ item }: { item: string }) => <ZoomPage uri={item} />,
+    [],
+  );
 
-  const renderVPage = useCallback(({ item }: { item: string }) =>
-    <WebtoonPage uri={item} />, []);
+  const renderVPage = useCallback(
+    ({ item }: { item: string }) => <WebtoonPage uri={item} />,
+    [],
+  );
 
   const keyExtract = useCallback((_: string, i: number) => `pg-${i}`, []);
 
-  const hLayout = useCallback((_: any, i: number) =>
-    ({ length: W, offset: W * i, index: i }), []);
+  const hLayout = useCallback(
+    (_: any, i: number) => ({ length: W, offset: W * i, index: i }),
+    [],
+  );
 
   // ── computed ───────────────────────────────────────────────────────────────
-  const sliderPct   = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
+  const sliderPct = totalPages > 1 ? currentPage / (totalPages - 1) : 0;
   const displayPage = currentPage + 1;
 
-  const modeIcon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] =
-    isVertical ? 'arrow-expand-vertical' : isRTL ? 'arrow-left-bold' : 'arrow-right-bold';
-  const modeLabel = isVertical ? 'Webtoon' : isRTL ? 'RTL' : 'LTR';
+  const modeIcon: React.ComponentProps<typeof MaterialCommunityIcons>["name"] =
+    isVertical
+      ? "arrow-expand-vertical"
+      : isRTL
+        ? "arrow-left-bold"
+        : "arrow-right-bold";
+  const modeLabel = isVertical ? "Webtoon" : isRTL ? "RTL" : "LTR";
 
   // ══════════════════════════════════════════════════════════════════════════
   // LOADING
   // ══════════════════════════════════════════════════════════════════════════
   if (loading) {
     return (
-      <View style={[styles.fill, { backgroundColor: '#000' }]}>
+      <View style={[styles.fill, { backgroundColor: "#000" }]}>
         <StatusBar hidden />
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[styles.loadText, { color: 'rgba(255,255,255,0.6)' }]}>
+        <Text style={[styles.loadText, { color: "rgba(255,255,255,0.6)" }]}>
           Loading chapter…
         </Text>
       </View>
@@ -498,14 +616,18 @@ export default function ReaderScreen() {
   if (error || !chapter) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <StatusBar style={isDark ? "light" : "dark"} />
         <View style={styles.errorBox}>
-          <Ionicons name="alert-circle-outline" size={52} color={colors.error} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={52}
+            color={colors.error}
+          />
           <Text style={[styles.errTitle, { color: colors.text }]}>
             Could not load chapter
           </Text>
           <Text style={[styles.errBody, { color: colors.textSecondary }]}>
-            {error ?? 'Unknown error'}
+            {error ?? "Unknown error"}
           </Text>
           <TouchableOpacity
             style={[styles.errBtn, { backgroundColor: colors.accent }]}
@@ -514,10 +636,15 @@ export default function ReaderScreen() {
             <Text style={styles.errBtnTxt}>Retry</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.errBtn, { backgroundColor: colors.surface, marginTop: 8 }]}
+            style={[
+              styles.errBtn,
+              { backgroundColor: colors.surface, marginTop: 8 },
+            ]}
             onPress={() => router.back()}
           >
-            <Text style={[styles.errBtnTxt, { color: colors.text }]}>Go back</Text>
+            <Text style={[styles.errBtnTxt, { color: colors.text }]}>
+              Go back
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -530,7 +657,7 @@ export default function ReaderScreen() {
   const pages = chapter.pages;
 
   return (
-    <View style={[styles.fill, { backgroundColor: '#000' }]}>
+    <View style={[styles.fill, { backgroundColor: "#000" }]}>
       <StatusBar hidden={!uiVisible} animated />
 
       {/* ═══ VERTICAL / WEBTOON ═══════════════════════════════════════════ */}
@@ -587,14 +714,20 @@ export default function ReaderScreen() {
             The center 50% is left free so pinch zoom on ZoomPage works.
           */}
           <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-            <Pressable style={styles.tapLeft}  onPress={isRTL ? tapNext : tapPrev} />
+            <Pressable
+              style={styles.tapLeft}
+              onPress={isRTL ? tapNext : tapPrev}
+            />
             {/* Center zone just toggles UI — no Pressable so scroll/zoom passes through */}
             <TouchableOpacity
               style={styles.tapMid}
               activeOpacity={1}
               onPress={toggleUI}
             />
-            <Pressable style={styles.tapRight} onPress={isRTL ? tapPrev : tapNext} />
+            <Pressable
+              style={styles.tapRight}
+              onPress={isRTL ? tapPrev : tapNext}
+            />
           </View>
         </View>
       )}
@@ -606,7 +739,9 @@ export default function ReaderScreen() {
           pointerEvents="none"
         >
           <View style={styles.pill}>
-            <Text style={styles.pillTxt}>{displayPage} / {totalPages}</Text>
+            <Text style={styles.pillTxt}>
+              {displayPage} / {totalPages}
+            </Text>
           </View>
         </View>
       )}
@@ -628,18 +763,31 @@ export default function ReaderScreen() {
             <Text numberOfLines={1} style={styles.topChapter}>
               {chapter.title ? chapter.title : `Chapter ${chapter.number}`}
             </Text>
-            <Text numberOfLines={1} style={styles.topSource}>{sourceName}</Text>
+            <Text numberOfLines={1} style={styles.topSource}>
+              {sourceName}
+            </Text>
           </View>
 
           {/* Mode badge — tappable to open sheet */}
           <TouchableOpacity
             style={styles.badge}
-            onPress={() => { setShowModeSheet(true); clearTimeout(hideTimer.current); }}
+            onPress={() => {
+              setShowModeSheet(true);
+              clearT(hideTimer.current);
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <MaterialCommunityIcons name={modeIcon} size={13} color="rgba(255,255,255,0.75)" />
+            <MaterialCommunityIcons
+              name={modeIcon}
+              size={13}
+              color="rgba(255,255,255,0.75)"
+            />
             <Text style={styles.badgeTxt}>{modeLabel}</Text>
-            <Ionicons name="chevron-down" size={11} color="rgba(255,255,255,0.5)" />
+            <Ionicons
+              name="chevron-down"
+              size={11}
+              color="rgba(255,255,255,0.5)"
+            />
           </TouchableOpacity>
         </View>
       )}
@@ -656,7 +804,11 @@ export default function ReaderScreen() {
           {/* Scrubber row */}
           <View style={styles.scrubRow}>
             <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
-              <Ionicons name="play-skip-back" size={20} color="rgba(255,255,255,0.65)" />
+              <Ionicons
+                name="play-skip-back"
+                size={20}
+                color="rgba(255,255,255,0.65)"
+              />
             </TouchableOpacity>
 
             <Pressable
@@ -665,18 +817,32 @@ export default function ReaderScreen() {
               onPress={onScrubPress}
             >
               <View style={styles.trackBg} />
-              <View style={[styles.trackFill, {
-                width: `${sliderPct * 100}%`,
-                backgroundColor: colors.accent,
-              }]} />
-              <View style={[styles.thumb, {
-                left: `${sliderPct * 100}%`,
-                backgroundColor: colors.accent,
-              }]} />
+              <View
+                style={[
+                  styles.trackFill,
+                  {
+                    width: `${sliderPct * 100}%`,
+                    backgroundColor: colors.accent,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  styles.thumb,
+                  {
+                    left: `${sliderPct * 100}%`,
+                    backgroundColor: colors.accent,
+                  },
+                ]}
+              />
             </Pressable>
 
             <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
-              <Ionicons name="play-skip-forward" size={20} color="rgba(255,255,255,0.65)" />
+              <Ionicons
+                name="play-skip-forward"
+                size={20}
+                color="rgba(255,255,255,0.65)"
+              />
             </TouchableOpacity>
           </View>
 
@@ -684,9 +850,9 @@ export default function ReaderScreen() {
           <View style={styles.navRow}>
             <TouchableOpacity style={styles.navBtn} onPress={tapPrev}>
               <Ionicons
-                name={isRTL ? 'chevron-forward' : 'chevron-back'}
+                name={isRTL ? "chevron-forward" : "chevron-back"}
                 size={26}
-                color={currentPage === 0 ? 'rgba(255,255,255,0.25)' : '#fff'}
+                color={currentPage === 0 ? "rgba(255,255,255,0.25)" : "#fff"}
               />
             </TouchableOpacity>
 
@@ -698,9 +864,13 @@ export default function ReaderScreen() {
 
             <TouchableOpacity style={styles.navBtn} onPress={tapNext}>
               <Ionicons
-                name={isRTL ? 'chevron-back' : 'chevron-forward'}
+                name={isRTL ? "chevron-back" : "chevron-forward"}
                 size={26}
-                color={currentPage === totalPages - 1 ? 'rgba(255,255,255,0.25)' : '#fff'}
+                color={
+                  currentPage === totalPages - 1
+                    ? "rgba(255,255,255,0.25)"
+                    : "#fff"
+                }
               />
             </TouchableOpacity>
           </View>
@@ -712,7 +882,10 @@ export default function ReaderScreen() {
         visible={showModeSheet}
         current={readingMode as ReadingModeType}
         onSelect={handleModeChange}
-        onClose={() => { setShowModeSheet(false); resetHideTimer(); }}
+        onClose={() => {
+          setShowModeSheet(false);
+          resetHideTimer();
+        }}
       />
     </View>
   );
@@ -727,156 +900,180 @@ const styles = StyleSheet.create({
   loadText: {
     marginTop: 14,
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   // Error
   errorBox: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 36,
     gap: 10,
   },
-  errTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
-  errBody:  { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  errTitle: { fontSize: 18, fontWeight: "600", textAlign: "center" },
+  errBody: { fontSize: 13, textAlign: "center", lineHeight: 20 },
   errBtn: {
     paddingHorizontal: 28,
     paddingVertical: 11,
     borderRadius: 8,
     minWidth: 130,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  errBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  errBtnTxt: { color: "#fff", fontSize: 15, fontWeight: "600" },
 
   // Zoom page
   zoomContent: {
     flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     minHeight: H,
   },
 
   // Tap zones
-  tapLeft:  { position: 'absolute', left: 0,    top: 0, bottom: 0, width: '25%' },
-  tapMid:   { position: 'absolute', left: '25%', right: '25%', top: 0, bottom: 0 },
-  tapRight: { position: 'absolute', right: 0,   top: 0, bottom: 0, width: '25%' },
+  tapLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: "25%" },
+  tapMid: {
+    position: "absolute",
+    left: "25%",
+    right: "25%",
+    top: 0,
+    bottom: 0,
+  },
+  tapRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: "25%" },
 
   // Page pill
   pillWrap: {
-    position: 'absolute',
-    alignSelf: 'center',
+    position: "absolute",
+    alignSelf: "center",
   },
   pill: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
   },
-  pillTxt: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  pillTxt: { color: "#fff", fontSize: 13, fontWeight: "600" },
 
   // Top bar
   topBar: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 6,
     paddingBottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.70)',
+    backgroundColor: "rgba(0,0,0,0.70)",
     gap: 4,
   },
   iconBtn: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   topTitleBlock: { flex: 1, gap: 2 },
-  topChapter: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  topSource:  { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+  topChapter: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  topSource: { color: "rgba(255,255,255,0.5)", fontSize: 11 },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+    borderColor: "rgba(255,255,255,0.28)",
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 4,
   },
-  badgeTxt: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '500' },
+  badgeTxt: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 11,
+    fontWeight: "500",
+  },
 
   // Bottom bar
   bottomBar: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingTop: 12,
     paddingHorizontal: 8,
-    backgroundColor: 'rgba(0,0,0,0.70)',
+    backgroundColor: "rgba(0,0,0,0.70)",
     gap: 6,
   },
 
   // Page label
-  pgLabel:   { textAlign: 'center' },
-  pgCurrent: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  pgSep:     { color: 'rgba(255,255,255,0.45)', fontSize: 13 },
+  pgLabel: { textAlign: "center" },
+  pgCurrent: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  pgSep: { color: "rgba(255,255,255,0.45)", fontSize: 13 },
 
   // Scrubber
   scrubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   scrubTrack: {
     flex: 1,
     height: 36,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 4,
   },
   trackBg: {
-    position: 'absolute',
-    left: 4, right: 4,
+    position: "absolute",
+    left: 4,
+    right: 4,
     height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: "rgba(255,255,255,0.22)",
   },
   trackFill: {
-    position: 'absolute',
+    position: "absolute",
     left: 4,
     height: 3,
     borderRadius: 2,
   },
   thumb: {
-    position: 'absolute',
+    position: "absolute",
     width: 18,
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
     marginLeft: -5,
-    top: '50%',
+    top: "50%",
     marginTop: -9,
   },
 
   // Nav row
   navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingBottom: 2,
   },
-  navBtn:        { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  navCenter:     { flex: 1, alignItems: 'center' },
-  navChapterTxt: { color: 'rgba(255,255,255,0.65)', fontSize: 13, textAlign: 'center' },
+  navBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navCenter: { flex: 1, alignItems: "center" },
+  navChapterTxt: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 13,
+    textAlign: "center",
+  },
 
   // Reading mode sheet
   sheetOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: "#1A1A1A",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -887,34 +1084,34 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignSelf: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "center",
     marginBottom: 16,
   },
   sheetTitle: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 12,
   },
   sheetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 4,
   },
   sheetRowActive: {
-    backgroundColor: 'rgba(255,140,66,0.12)',
+    backgroundColor: "rgba(255,140,66,0.12)",
   },
   sheetRowLabel: {
-    color: 'rgba(255,255,255,0.85)',
+    color: "rgba(255,255,255,0.85)",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   sheetRowDesc: {
-    color: 'rgba(255,255,255,0.4)',
+    color: "rgba(255,255,255,0.4)",
     fontSize: 12,
     marginTop: 2,
   },

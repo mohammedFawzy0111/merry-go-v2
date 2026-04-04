@@ -1,4 +1,4 @@
-import { Dropdown, DropdownOption } from '@/components/Dropdown';
+import { Dropdown, DropdownOption } from "@/components/Dropdown";
 import { ThemedModal } from "@/components/ThemedModal";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -11,8 +11,14 @@ import { formatDateString } from "@/utils/formatDateString";
 import { Chapter, Manga } from "@/utils/sourceModel";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { Image as ExpoImage } from 'expo-image';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Image as ExpoImage } from "expo-image";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -44,51 +50,75 @@ const ChapterCard = React.memo(
   }) => {
     const { colors } = useTheme();
     const { sizes } = useFontSize();
-    const {
-      addToDownloadQueue,
-      removeDownload,
-    } = useDownloadStore();
+    const { addToDownloadQueue, removeDownload } = useDownloadStore();
 
     const chapterDownload = downloadsByChapter.get(chapter.url);
     const downloadStatus = chapterDownload?.status;
     const downloadProgress = chapterDownload?.progress || 0;
 
     const handleDownloadPress = async () => {
-      if (downloadStatus === 'pending' || downloadStatus === 'downloading') {
+      if (downloadStatus === "pending" || downloadStatus === "downloading") {
         if (chapterDownload) {
           await removeDownload(chapterDownload.id);
         }
       } else {
-        await addToDownloadQueue(mangaUrl, chapter.url, chapter.title, mangaTitle);
+        await addToDownloadQueue(
+          mangaUrl,
+          chapter.url,
+          chapter.title,
+          mangaTitle,
+        );
       }
     };
 
     const getDownloadIcon = () => {
       switch (downloadStatus) {
-        case 'pending':
+        case "pending":
           return (
-            <View style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <MaterialIcons name="schedule" size={16} color={colors.textSecondary} onPress={handleDownloadPress} />
+            <View
+              style={[
+                styles.downloadProgress,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <MaterialIcons
+                name="schedule"
+                size={16}
+                color={colors.textSecondary}
+                onPress={handleDownloadPress}
+              />
             </View>
           );
-        case 'downloading':
+        case "downloading":
           return (
             <View style={styles.downloadProgressContainer}>
-              <View style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View
+                style={[
+                  styles.downloadProgress,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
                 <MaterialIcons
                   name="close"
                   size={16}
                   color={colors.error}
                   onPress={handleDownloadPress}
                 />
-                <View style={[styles.progressRing, { borderColor: colors.accent }]}>
+                <View
+                  style={[styles.progressRing, { borderColor: colors.accent }]}
+                >
                   <View
                     style={[
                       styles.progressFill,
                       {
-                        transform: [{ rotate: `${-90 + (downloadProgress * 3.6)}deg` }],
+                        transform: [
+                          { rotate: `${-90 + downloadProgress * 3.6}deg` },
+                        ],
                         backgroundColor: colors.accent,
-                      }
+                      },
                     ]}
                   />
                 </View>
@@ -98,15 +128,25 @@ const ChapterCard = React.memo(
               </View>
             </View>
           );
-        case 'done':
+        case "done":
           return (
-            <View style={[styles.downloadProgress, { backgroundColor: colors.success, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.downloadProgress,
+                { backgroundColor: colors.success, borderColor: colors.border },
+              ]}
+            >
               <MaterialIcons name="check" size={16} color="#fff" />
             </View>
           );
-        case 'error':
+        case "error":
           return (
-            <View style={[styles.downloadProgress, { backgroundColor: colors.error, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.downloadProgress,
+                { backgroundColor: colors.error, borderColor: colors.border },
+              ]}
+            >
               <MaterialIcons name="error" size={16} color="#fff" />
             </View>
           );
@@ -114,9 +154,16 @@ const ChapterCard = React.memo(
           return (
             <TouchableOpacity
               onPress={handleDownloadPress}
-              style={[styles.downloadProgress, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.downloadProgress,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
             >
-              <MaterialIcons name="file-download" size={16} color={colors.text} />
+              <MaterialIcons
+                name="file-download"
+                size={16}
+                color={colors.text}
+              />
             </TouchableOpacity>
           );
       }
@@ -151,7 +198,9 @@ const ChapterCard = React.memo(
             </ThemedText>
           </ThemedView>
 
-          <ThemedView style={[styles.col, { alignItems: 'flex-start', flex: 1 }]}>
+          <ThemedView
+            style={[styles.col, { alignItems: "flex-start", flex: 1 }]}
+          >
             {chapter.title ? (
               <ThemedText
                 variant="default"
@@ -174,12 +223,10 @@ const ChapterCard = React.memo(
           </ThemedView>
         </TouchableOpacity>
 
-        <View style={styles.downloadButton}>
-          {getDownloadIcon()}
-        </View>
+        <View style={styles.downloadButton}>{getDownloadIcon()}</View>
       </ThemedView>
     );
-  }
+  },
 );
 
 export default function MangaDetails() {
@@ -187,7 +234,8 @@ export default function MangaDetails() {
   const { colors } = useTheme();
   const { sizes } = useFontSize();
   const { mangas, addManga, removeManga, getMangaByUrl } = useMangaStore();
-  const { addToDownloadQueue, downloads, downloadsByChapter } = useDownloadStore();
+  const { addToDownloadQueue, downloads, downloadsByChapter } =
+    useDownloadStore();
   const { categories, loadCategories } = useCategoryStore();
   const router = useRouter();
   const source = sourceManager.getSourceByName(sourceName as string)?.source;
@@ -204,7 +252,7 @@ export default function MangaDetails() {
       source: placeHolderSource,
       data: {},
       chapters: [],
-    })
+    }),
   );
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -212,7 +260,7 @@ export default function MangaDetails() {
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const [isReversed, setIsReversed] = useState<boolean>(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('default');
+  const [selectedCategory, setSelectedCategory] = useState("default");
 
   // Local read-state tracker so UI updates instantly without a full reload.
   // Key = chapter URL, Value = true when read.
@@ -221,22 +269,27 @@ export default function MangaDetails() {
   useFocusEffect(
     useCallback(() => {
       // Re-seed readMap from DB so chapters marked read in the reader are reflected
-      getMangaByUrl(mangaUrl as string).then(m => {
+      getMangaByUrl(mangaUrl as string).then((m) => {
         if (!m) return;
         const updated: Record<string, boolean> = {};
-        m.chapters.forEach(ch => { updated[ch.url] = ch.isRead; });
+        m.chapters.forEach((ch) => {
+          updated[ch.url] = ch.isRead;
+        });
         setReadMap(updated);
       });
-    }, [mangaUrl])
+    }, [mangaUrl]),
   );
 
-  const categoryOptions: DropdownOption<string>[] = useMemo(() => [
-    { value: 'default', label: 'All' },
-    ...categories.map(cat => ({
-      value: cat.id,
-      label: cat.name
-    }))
-  ], [categories]);
+  const categoryOptions: DropdownOption<string>[] = useMemo(
+    () => [
+      { value: "default", label: "All" },
+      ...categories.map((cat) => ({
+        value: cat.id,
+        label: cat.name,
+      })),
+    ],
+    [categories],
+  );
 
   useEffect(() => {
     const loadCats = async () => {
@@ -258,7 +311,7 @@ export default function MangaDetails() {
             setManga(existingManga);
             // Seed the readMap from whatever is already stored
             const initial: Record<string, boolean> = {};
-            existingManga.chapters.forEach(ch => {
+            existingManga.chapters.forEach((ch) => {
               initial[ch.url] = ch.isRead;
             });
             setReadMap(initial);
@@ -281,8 +334,10 @@ export default function MangaDetails() {
     };
 
     loadMangaData();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, mangaUrl]);
 
   useEffect(() => {
@@ -291,16 +346,16 @@ export default function MangaDetails() {
 
   // ── Navigate to chapter, mark as read, update local readMap ───────────────
   const handleGoToChapter = useCallback(
-    (url: string)  => {
+    (url: string) => {
       // Optimistic UI update so the card dims instantly on back-navigation
-      setReadMap(prev => ({ ...prev, [url]: true }));
+      setReadMap((prev) => ({ ...prev, [url]: true }));
 
       router.navigate({
         pathname: "/(manga)/readerScreen",
         params: { chapterUrl: url, sourceName, mangaUrl: manga.url },
       });
     },
-    [router, sourceName, manga.url]
+    [router, sourceName, manga.url],
   );
 
   const toggleReverse = useCallback(() => setIsReversed((v) => !v), []);
@@ -310,13 +365,13 @@ export default function MangaDetails() {
       if (isBookmarked) {
         await removeManga(manga.url);
         setIsBookmarked(false);
-        ToastAndroid.show('Removed from library', ToastAndroid.SHORT);
+        ToastAndroid.show("Removed from library", ToastAndroid.SHORT);
       } else {
         setShowCategoryModal(true);
       }
     } catch (error) {
       ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
-      console.error('Bookmark toggle error:', error);
+      console.error("Bookmark toggle error:", error);
     }
   };
 
@@ -326,16 +381,19 @@ export default function MangaDetails() {
       await addManga(mangaWithCat);
       setIsBookmarked(true);
       setShowCategoryModal(false);
-      ToastAndroid.show(`Added to ${getCategoryName(categoryId)}`, ToastAndroid.SHORT);
+      ToastAndroid.show(
+        `Added to ${getCategoryName(categoryId)}`,
+        ToastAndroid.SHORT,
+      );
     } catch (error) {
       ToastAndroid.show(`Operation failed: ${error}`, ToastAndroid.LONG);
-      console.error('Bookmark toggle error:', error);
+      console.error("Bookmark toggle error:", error);
     }
   };
 
   const getCategoryName = (id: string) => {
-    const category = categories.find(cat => cat.id === id);
-    return category ? category.name : 'All';
+    const category = categories.find((cat) => cat.id === id);
+    return category ? category.name : "All";
   };
 
   const onRefresh = useCallback(async () => {
@@ -346,7 +404,9 @@ export default function MangaDetails() {
       setManga(data);
       // Re-seed readMap on refresh
       const refreshed: Record<string, boolean> = {};
-      data.chapters.forEach(ch => { refreshed[ch.url] = ch.isRead; });
+      data.chapters.forEach((ch) => {
+        refreshed[ch.url] = ch.isRead;
+      });
       setReadMap(refreshed);
     } catch (error) {
       ToastAndroid.show(`Failed to refresh manga: ${error}`, ToastAndroid.LONG);
@@ -358,30 +418,46 @@ export default function MangaDetails() {
   const handleDownloadAll = async () => {
     try {
       for (const chapter of manga.chapters) {
-        const existingDownload = downloads.find(d => d.chapterUrl === chapter.url);
+        const existingDownload = downloads.find(
+          (d) => d.chapterUrl === chapter.url,
+        );
         if (!existingDownload) {
-          await addToDownloadQueue(manga.url, chapter.url, chapter.title, manga.name);
+          await addToDownloadQueue(
+            manga.url,
+            chapter.url,
+            chapter.title,
+            manga.name,
+          );
         }
       }
-      ToastAndroid.show('Added all chapters to download queue', ToastAndroid.SHORT);
+      ToastAndroid.show(
+        "Added all chapters to download queue",
+        ToastAndroid.SHORT,
+      );
     } catch (error) {
-      ToastAndroid.show('Failed to add chapters to download', ToastAndroid.LONG);
-      console.error('Download all error:', error);
+      ToastAndroid.show(
+        "Failed to add chapters to download",
+        ToastAndroid.LONG,
+      );
+      console.error("Download all error:", error);
     }
   };
 
   const displayedChapters = useMemo(() => {
     const seen = new Set<string>();
-    const unique = manga.chapters.filter(ch => {
+    const unique = manga.chapters.filter((ch) => {
       if (seen.has(ch.url)) return false;
       seen.add(ch.url);
       return true;
     });
     // Merge optimistic readMap into chapters so ChapterCard sees current state
-    const withReadState = unique.map(ch => ({
-      ...ch,
-      isRead: readMap[ch.url] ?? ch.isRead,
-    }));
+    const withReadState = unique.map(
+      (ch) =>
+        new Chapter({
+          ...ch,
+          isRead: readMap[ch.url] ?? ch.isRead,
+        }),
+    );
     return isReversed ? [...withReadState].reverse() : withReadState;
   }, [manga.chapters, isReversed, readMap]);
 
@@ -403,11 +479,7 @@ export default function MangaDetails() {
           </View>
 
           <View style={styles.textContainer}>
-            <ThemedText
-              variant="title"
-              numberOfLines={2}
-              ellipsizeMode="tail"
-            >
+            <ThemedText variant="title" numberOfLines={2} ellipsizeMode="tail">
               {manga.name}
             </ThemedText>
             {manga.data.author && (
@@ -444,16 +516,19 @@ export default function MangaDetails() {
         </ThemedView>
 
         {/* Rating and add to library button */}
-        <ThemedView variant="surface" style={[styles.libContainer, { backgroundColor: colors.surface }]}>
+        <ThemedView
+          variant="surface"
+          style={[styles.libContainer, { backgroundColor: colors.surface }]}
+        >
           <TouchableOpacity
             style={[
               styles.addToLib,
               {
-                backgroundColor: isBookmarked ? colors.accent : 'transparent',
+                backgroundColor: isBookmarked ? colors.accent : "transparent",
                 borderColor: colors.border,
                 borderWidth: 2,
-                borderRadius: 8
-              }
+                borderRadius: 8,
+              },
             ]}
             onPress={toggleBookmark}
           >
@@ -464,12 +539,18 @@ export default function MangaDetails() {
             />
           </TouchableOpacity>
 
-          <ThemedView variant="default" style={[styles.ratingContainer, { borderColor: colors.border }]}>
+          <ThemedView
+            variant="default"
+            style={[styles.ratingContainer, { borderColor: colors.border }]}
+          >
             <ThemedText variant="title" style={{ color: colors.accent }}>
               {`${manga.data.rating ? Math.round(manga.data.rating * 10) / 10 : 0}`}
             </ThemedText>
-            <Ionicons name='star' color={colors.accent} size={sizes.heading} />
-            <ThemedText variant="subtitle" style={{ color: colors.textSecondary }}>
+            <Ionicons name="star" color={colors.accent} size={sizes.heading} />
+            <ThemedText
+              variant="subtitle"
+              style={{ color: colors.textSecondary }}
+            >
               /10
             </ThemedText>
           </ThemedView>
@@ -488,7 +569,9 @@ export default function MangaDetails() {
 
           {manga.data.altTitles && manga.data.altTitles.length > 0 && (
             <View>
-              <ThemedText variant="secondary">{"Alternative titles:"}</ThemedText>
+              <ThemedText variant="secondary">
+                {"Alternative titles:"}
+              </ThemedText>
               {manga.data.altTitles.map((title: string, id: number) => (
                 <ThemedText
                   key={id}
@@ -550,14 +633,20 @@ export default function MangaDetails() {
             {"Chapters"}
           </ThemedText>
           <View style={styles.chapterActions}>
-            <TouchableOpacity onPress={toggleReverse} style={[styles.actionButton, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              onPress={toggleReverse}
+              style={[styles.actionButton, { backgroundColor: colors.surface }]}
+            >
               <Ionicons
                 name="swap-vertical-sharp"
                 size={sizes.heading}
                 color={colors.text}
               />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDownloadAll} style={[styles.actionButton, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              onPress={handleDownloadAll}
+              style={[styles.actionButton, { backgroundColor: colors.surface }]}
+            >
               <MaterialIcons
                 name="download"
                 size={sizes.heading}
@@ -568,7 +657,7 @@ export default function MangaDetails() {
         </ThemedView>
       </ThemedView>
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga, detailsCollapsed, toggleReverse, isBookmarked]);
 
   const renderItem = useCallback(
@@ -584,7 +673,13 @@ export default function MangaDetails() {
         />
       );
     },
-    [handleGoToChapter, colors.border, manga.url, manga.name, downloadsByChapter]
+    [
+      handleGoToChapter,
+      colors.border,
+      manga.url,
+      manga.name,
+      downloadsByChapter,
+    ],
   );
 
   const ITEM_HEIGHT = 64;
@@ -623,7 +718,7 @@ export default function MangaDetails() {
 
       <ThemedModal
         visible={showCategoryModal}
-        type='custom'
+        type="custom"
         title="Select Category"
         onCancel={() => setShowCategoryModal(false)}
         customContent={
@@ -633,11 +728,14 @@ export default function MangaDetails() {
               selectedValue={selectedCategory}
               onSelect={setSelectedCategory}
               placeholder="Select category"
-              width='100%'
+              width="100%"
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: colors.surface }]}
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: colors.surface },
+                ]}
                 onPress={() => setShowCategoryModal(false)}
               >
                 <ThemedText>Cancel</ThemedText>
@@ -646,7 +744,9 @@ export default function MangaDetails() {
                 style={[styles.modalButton, { backgroundColor: colors.accent }]}
                 onPress={() => handleAddWithCategory(selectedCategory)}
               >
-                <ThemedText style={{ color: colors.text }}>Add to Library</ThemedText>
+                <ThemedText style={{ color: colors.text }}>
+                  Add to Library
+                </ThemedText>
               </TouchableOpacity>
             </View>
           </ThemedView>
@@ -688,9 +788,9 @@ const styles = StyleSheet.create({
   libContainer: {
     flex: 1,
     padding: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderRadius: 8,
     marginHorizontal: 16,
     marginBottom: 16,
@@ -698,12 +798,12 @@ const styles = StyleSheet.create({
   addToLib: {
     width: 48,
     height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -755,7 +855,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderLeftWidth: 3,       // overridden per-card by read state
+    borderLeftWidth: 3, // overridden per-card by read state
     padding: 12,
     marginBottom: 8,
     minHeight: 48,
@@ -773,16 +873,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   downloadProgressContainer: {
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
   },
   downloadProgress: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
   },
   progressRing: {
@@ -790,22 +890,22 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 2,
-    position: 'absolute',
-    justifyContent: 'center',
-    alignContent: 'center',
-    overflow: 'hidden',
-    transform: [{ rotate: '-90deg' }],
+    position: "absolute",
+    justifyContent: "center",
+    alignContent: "center",
+    overflow: "hidden",
+    transform: [{ rotate: "-90deg" }],
   },
   progressFill: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
+    width: "100%",
+    height: "100%",
+    position: "absolute",
     borderRadius: 16,
   },
   progressText: {
     fontSize: 8,
-    position: 'absolute',
-    fontWeight: 'bold',
+    position: "absolute",
+    fontWeight: "bold",
   },
   col: {
     flexDirection: "column",
@@ -813,7 +913,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chapterActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   actionButton: {
@@ -826,8 +926,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: 8,
   },
   modalButton: {
@@ -835,6 +935,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     minWidth: 80,
-    alignItems: 'center',
+    alignItems: "center",
   },
 });
