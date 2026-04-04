@@ -4,8 +4,8 @@ import { ThemedView } from "@/components/ThemedView";
 import { useFontSize, useTheme } from "@/contexts/settingProvider";
 import { Download } from "@/db/db";
 import { useDownloadStore } from "@/store/downloadStore";
-import { MaterialIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import { MaterialIcons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -14,27 +14,35 @@ import {
   RefreshControl,
   StyleSheet,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+import { useRouter } from "expo-router";
+const { width } = Dimensions.get("window");
 
-const { width } = Dimensions.get('window');
-
-type DownloadSection = 'all' | 'active' | 'completed' | 'errors';
+type DownloadSection = "all" | "active" | "completed" | "errors";
 
 export default function Downloads() {
-  const downloads = useDownloadStore(s => s.downloads);
-  const loading = useDownloadStore(s => s.loading);
-  const { loadDownloads, removeDownload, retryDownload, clearCompletedDownloads } = useDownloadStore();
-  const activeDownloads = downloads.filter(d => d.status === 'downloading');
-  const pendingDownloads = downloads.filter(d => d.status === 'pending');
-  const completedDownloads = downloads.filter(d => d.status === 'done');
-  const errorDownloads = downloads.filter(d => d.status === 'error');
+  const downloads = useDownloadStore((s) => s.downloads);
+  const loading = useDownloadStore((s) => s.loading);
+  const {
+    loadDownloads,
+    removeDownload,
+    retryDownload,
+    clearCompletedDownloads,
+  } = useDownloadStore();
+  const activeDownloads = downloads.filter((d) => d.status === "downloading");
+  const pendingDownloads = downloads.filter((d) => d.status === "pending");
+  const completedDownloads = downloads.filter((d) => d.status === "done");
+  const errorDownloads = downloads.filter((d) => d.status === "error");
   const { colors } = useTheme();
   const { sizes } = useFontSize();
-  const [activeSection, setActiveSection] = useState<DownloadSection>('all');
+  const [activeSection, setActiveSection] = useState<DownloadSection>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedDownload, setSelectedDownload] = useState<Download | null>(null);
+  const [selectedDownload, setSelectedDownload] = useState<Download | null>(
+    null,
+  );
+  const router = useRouter();
 
   useEffect(() => {
     loadDownloads();
@@ -48,11 +56,11 @@ export default function Downloads() {
 
   const getDisplayDownloads = () => {
     switch (activeSection) {
-      case 'active':
+      case "active":
         return [...activeDownloads, ...pendingDownloads];
-      case 'completed':
+      case "completed":
         return completedDownloads;
-      case 'errors':
+      case "errors":
         return errorDownloads;
       default:
         return downloads;
@@ -71,9 +79,9 @@ export default function Downloads() {
         const downloadDir = selectedDownload.localPath;
         await FileSystem.deleteAsync(downloadDir, { idempotent: true });
       } catch (error) {
-        console.log('Error deleting files:', error);
+        console.log("Error deleting files:", error);
       }
-      
+
       await removeDownload(selectedDownload.id);
       setShowDeleteModal(false);
       setSelectedDownload(null);
@@ -81,18 +89,29 @@ export default function Downloads() {
   };
 
   const handleOpenDownload = async (download: Download) => {
-    if (download.status === 'done' && download.localPath) {
+    if (download.status === "done" && download.localPath) {
       try {
         // Check if file exists
         const info = await FileSystem.getInfoAsync(download.localPath);
         if (info.exists) {
           // Here you would navigate to a reader component
-          Alert.alert('Download Ready', `Open ${download.mangaTitle} - ${download.chapterTitle}`);
+          router.navigate({
+            pathname: "/(manga)/readerScreen",
+            params: {
+              chapterUrl: download.chapterUrl,
+              sourceName: "defualt",
+              mangaUrl: download.mangaTitle,
+            },
+          });
+          Alert.alert(
+            "Download Ready",
+            `Open ${download.mangaTitle} - ${download.chapterTitle}`,
+          );
         } else {
-          Alert.alert('Error', 'Downloaded file not found');
+          Alert.alert("Error", "Downloaded file not found");
         }
       } catch (error) {
-        Alert.alert('Error', 'Could not access downloaded file');
+        Alert.alert("Error", "Could not access downloaded file");
       }
     }
   };
@@ -100,54 +119,69 @@ export default function Downloads() {
   const renderDownloadItem = ({ item }: { item: Download }) => (
     <ThemedView variant="surface" style={styles.downloadItem}>
       <View style={styles.downloadInfo}>
-        <ThemedText variant="subtitle" style={{fontWeight: '600',fontSize: sizes.heading}}>
+        <ThemedText
+          variant="subtitle"
+          style={{ fontWeight: "600", fontSize: sizes.heading }}
+        >
           {item.mangaTitle}
         </ThemedText>
-        <ThemedText variant="secondary" style={{fontSize: sizes.text,opacity: 0.8}}>
+        <ThemedText
+          variant="secondary"
+          style={{ fontSize: sizes.text, opacity: 0.8 }}
+        >
           {item.chapterTitle}
         </ThemedText>
-        
-        {item.status === 'downloading' && (
+
+        {item.status === "downloading" && (
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
-              <View 
+              <View
                 style={[
                   styles.progressFill,
-                  { width: `${item.progress}%`, backgroundColor: colors.accent }
-                ]} 
+                  {
+                    width: `${item.progress}%`,
+                    backgroundColor: colors.accent,
+                  },
+                ]}
               />
             </View>
-            <ThemedText variant="secondary" style={{fontSize: sizes.sub,minWidth: 40}}>
+            <ThemedText
+              variant="secondary"
+              style={{ fontSize: sizes.sub, minWidth: 40 }}
+            >
               {Math.round(item.progress)}%
             </ThemedText>
           </View>
         )}
-        
-        <ThemedText variant="secondary" style={{fontSize: sizes.sub,marginTop: 4}}>
+
+        <ThemedText
+          variant="secondary"
+          style={{ fontSize: sizes.sub, marginTop: 4 }}
+        >
           Status: {item.status}
         </ThemedText>
       </View>
 
       <View style={styles.actionButtons}>
-        {item.status === 'error' && (
-          <TouchableOpacity 
+        {item.status === "error" && (
+          <TouchableOpacity
             onPress={() => retryDownload(item.id)}
             style={[styles.actionButton, { backgroundColor: colors.accent }]}
           >
             <MaterialIcons name="refresh" size={20} color="#fff" />
           </TouchableOpacity>
         )}
-        
-        {item.status === 'done' && (
-          <TouchableOpacity 
+
+        {item.status === "done" && (
+          <TouchableOpacity
             onPress={() => handleOpenDownload(item)}
             style={[styles.actionButton, { backgroundColor: colors.success }]}
           >
             <MaterialIcons name="open-in-new" size={20} color="#fff" />
           </TouchableOpacity>
         )}
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           onPress={() => handleDeleteDownload(item)}
           style={[styles.actionButton, { backgroundColor: colors.error }]}
         >
@@ -158,16 +192,30 @@ export default function Downloads() {
   );
 
   const sectionData = [
-    { key: 'all' as DownloadSection, title: 'All', count: downloads.length },
-    { key: 'active' as DownloadSection, title: 'Active', count: activeDownloads.length + pendingDownloads.length },
-    { key: 'completed' as DownloadSection, title: 'Completed', count: completedDownloads.length },
-    { key: 'errors' as DownloadSection, title: 'Errors', count: errorDownloads.length },
+    { key: "all" as DownloadSection, title: "All", count: downloads.length },
+    {
+      key: "active" as DownloadSection,
+      title: "Active",
+      count: activeDownloads.length + pendingDownloads.length,
+    },
+    {
+      key: "completed" as DownloadSection,
+      title: "Completed",
+      count: completedDownloads.length,
+    },
+    {
+      key: "errors" as DownloadSection,
+      title: "Errors",
+      count: errorDownloads.length,
+    },
   ];
 
   return (
     <ThemedView variant="background" style={styles.container}>
       {/* Section Header */}
-      <ThemedView style={[styles.sectionHeader,{borderBottomColor: colors.border}]}>
+      <ThemedView
+        style={[styles.sectionHeader, { borderBottomColor: colors.border }]}
+      >
         <FlatList
           horizontal
           data={sectionData}
@@ -176,12 +224,14 @@ export default function Downloads() {
               onPress={() => setActiveSection(item.key)}
               style={[
                 styles.sectionButton,
-                activeSection === item.key && {backgroundColor: colors.surface}
+                activeSection === item.key && {
+                  backgroundColor: colors.surface,
+                },
               ]}
             >
-              <ThemedText 
-                variant={activeSection === item.key ? 'accent' : 'secondary'}
-                style={{fontWeight: '500',fontSize:sizes.text }}
+              <ThemedText
+                variant={activeSection === item.key ? "accent" : "secondary"}
+                style={{ fontWeight: "500", fontSize: sizes.text }}
               >
                 {item.title} ({item.count})
               </ThemedText>
@@ -208,15 +258,18 @@ export default function Downloads() {
         }
         ListEmptyComponent={
           <ThemedView style={styles.emptyContainer}>
-            <MaterialIcons name="file-download" size={64} color={colors.textSecondary} />
+            <MaterialIcons
+              name="file-download"
+              size={64}
+              color={colors.textSecondary}
+            />
             <ThemedText variant="title" style={styles.emptyText}>
               No downloads found
             </ThemedText>
             <ThemedText variant="secondary" style={styles.emptySubtext}>
-              {activeSection === 'all' 
-                ? 'Your download list is empty'
-                : `No ${activeSection} downloads`
-              }
+              {activeSection === "all"
+                ? "Your download list is empty"
+                : `No ${activeSection} downloads`}
             </ThemedText>
           </ThemedView>
         }
@@ -242,7 +295,11 @@ export default function Downloads() {
         visible={showDeleteModal}
         type="confirm"
         title="Delete Download"
-        message={selectedDownload ? `Delete ${selectedDownload.mangaTitle} - ${selectedDownload.chapterTitle}?` : ''}
+        message={
+          selectedDownload
+            ? `Delete ${selectedDownload.mangaTitle} - ${selectedDownload.chapterTitle}?`
+            : ""
+        }
         confirmText="Delete"
         cancelText="Cancel"
         onConfirm={confirmDelete}
@@ -279,8 +336,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   downloadItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderRadius: 12,
     gap: 16,
@@ -290,63 +347,63 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginTop: 8,
   },
   progressBar: {
     flex: 1,
     height: 6,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: "rgba(0,0,0,0.1)",
     borderRadius: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressFill: {
-    height: '100%',
+    height: "100%",
     borderRadius: 3,
   },
   actionButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   actionButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 32,
     minHeight: 300,
   },
   emptyText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.7,
   },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: "rgba(0,0,0,0.1)",
   },
   footerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 12,
     borderRadius: 8,
     gap: 8,
   },
   footerButtonText: {
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
