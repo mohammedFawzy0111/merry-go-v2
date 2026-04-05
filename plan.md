@@ -70,7 +70,7 @@
   - Left border color
   - Dimmed title
 
-**Effort:** Low
+**Effort:** Low[done]
 
 ---
 
@@ -109,7 +109,7 @@
 ### U7 — Open downloaded chapters
 - Navigate to reader instead of alert
 
-**Effort:** Low
+**Effort:** Low[done]
 
 ---
 
@@ -267,7 +267,7 @@
 
 - U2 — read state on chapter cards; the DB already tracks it, just not shown [done]
 
-- U7 — wire the open button in Downloads; the reader already handles offline pages
+- U7 — wire the open button in Downloads; the reader already handles offline pages[done]
 
 - PL5 — minAppVersion enforcement is 5 lines of semver comparison
 
